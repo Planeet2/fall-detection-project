@@ -1,3 +1,6 @@
+# macOS
+.DS_Store
+
 # Python
 __pycache__/
 *.pyc
@@ -17,9 +20,5 @@ features/
 *.avi
 *.webm
 
-# System
-.DS_Store
-Thumbs.db
-
-# Environment
+# Environment variables
 .env
