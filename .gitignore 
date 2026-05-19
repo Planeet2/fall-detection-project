@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# AI/data files
+dataset/
+features/
+*.npy
+*.pth
+*.pt
+
+# Videos
+*.mp4
+*.mov
+*.avi
+*.webm
+
+# System
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
