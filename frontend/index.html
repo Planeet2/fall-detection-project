@@ -7,78 +7,135 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="page">
-    <header class="header">
+  <div class="app">
+    <header class="hero">
+      <div class="badge">AI Safety Demo</div>
       <h1>Fall Detection System</h1>
       <p>
-        Загрузите видео, и система определит, было ли падение человека.
+        Система анализирует видео, находит скелет человека через YOLOv8 Pose
+        и определяет вероятность падения с помощью LSTM-модели.
       </p>
     </header>
 
-    <main class="card">
-      <section class="upload-section">
-        <h2>Загрузка видео</h2>
+    <main class="layout">
+      <section class="panel upload-panel">
+        <div class="panel-header">
+          <h2>1. Загрузите видео</h2>
+          <p>Поддерживаемые форматы: MP4, MOV, AVI, WEBM</p>
+        </div>
 
-        <label class="file-label" for="videoInput">
-          Выбрать видео
-        </label>
+        <div class="upload-box" id="uploadBox">
+          <input
+            id="videoInput"
+            type="file"
+            accept="video/mp4,video/quicktime,video/x-msvideo,video/webm"
+            hidden
+          />
 
-        <input
-          id="videoInput"
-          class="file-input"
-          type="file"
-          accept="video/mp4,video/quicktime,video/x-msvideo,video/webm"
-        />
+          <button class="secondary-button" id="chooseFileButton">
+            Выбрать видео
+          </button>
 
-        <p id="fileName" class="file-name">
-          Файл не выбран
-        </p>
+          <p id="fileName" class="file-name">Файл пока не выбран</p>
+        </div>
 
         <video id="videoPreview" class="video-preview" controls hidden></video>
 
-        <button id="analyzeButton" class="button" disabled>
+        <button id="analyzeButton" class="primary-button" disabled>
           Analyze Video
         </button>
 
-        <p id="loadingText" class="loading" hidden>
-          Видео анализируется, подождите...
-        </p>
-      </section>
-
-      <section id="resultSection" class="result-section" hidden>
-        <h2>Результат</h2>
-
-        <div id="resultBox" class="result-box">
-          <p id="resultLabel" class="result-label">—</p>
-          <p id="resultMessage" class="result-message">—</p>
-        </div>
-
-        <div class="details">
-          <p>
-            <strong>Вероятность падения:</strong>
-            <span id="probabilityValue">—</span>
-          </p>
-
-          <p>
-            <strong>Обработано кадров:</strong>
-            <span id="framesValue">—</span>
-          </p>
-
-          <p>
-            <strong>Проанализировано окон:</strong>
-            <span id="windowsValue">—</span>
-          </p>
+        <div id="loadingBlock" class="loading-block" hidden>
+          <div class="spinner"></div>
+          <div>
+            <strong>Видео анализируется...</strong>
+            <p>Backend обрабатывает кадры и запускает модель.</p>
+          </div>
         </div>
       </section>
 
-      <section id="errorSection" class="error-section" hidden>
-        <h2>Ошибка</h2>
-        <p id="errorMessage">Что-то пошло не так.</p>
+      <section class="panel result-panel">
+        <div class="panel-header">
+          <h2>2. Результат анализа</h2>
+          <p>Здесь появится итог после обработки видео.</p>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+          <div class="empty-icon">🎥</div>
+          <p>Загрузите видео и нажмите Analyze Video.</p>
+        </div>
+
+        <div id="resultSection" class="result-section" hidden>
+          <div id="resultCard" class="result-card">
+            <p id="resultLabel" class="result-label">—</p>
+            <p id="resultMessage" class="result-message">—</p>
+          </div>
+
+          <div class="probability-wrapper">
+            <div class="probability-row">
+              <span>Вероятность падения</span>
+              <strong id="probabilityText">—</strong>
+            </div>
+
+            <div class="progress">
+              <div id="probabilityBar" class="progress-bar"></div>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span>Статус</span>
+              <strong id="statusValue">—</strong>
+            </div>
+
+            <div class="stat-card">
+              <span>Кадров обработано</span>
+              <strong id="framesValue">—</strong>
+            </div>
+
+            <div class="stat-card">
+              <span>Окон LSTM</span>
+              <strong id="windowsValue">—</strong>
+            </div>
+          </div>
+        </div>
+
+        <div id="errorSection" class="error-section" hidden>
+          <strong>Ошибка</strong>
+          <p id="errorMessage">Что-то пошло не так.</p>
+        </div>
       </section>
     </main>
 
+    <section class="info-section">
+      <div class="info-card">
+        <h3>Как это работает?</h3>
+        <p>
+          YOLOv8 Pose извлекает 17 ключевых точек тела. Каждая точка имеет
+          координаты x, y и confidence. Один кадр превращается в 51 число.
+        </p>
+      </div>
+
+      <div class="info-card">
+        <h3>Почему 30 кадров?</h3>
+        <p>
+          Падение — это движение во времени. LSTM анализирует последовательность
+          из 30 кадров, а не один отдельный кадр.
+        </p>
+      </div>
+
+      <div class="info-card">
+        <h3>Backend</h3>
+        <p>
+          Frontend отправляет видео на endpoint
+          <code>POST /predict-video</code>, а backend возвращает JSON-результат.
+        </p>
+      </div>
+    </section>
+
     <footer class="footer">
-      <p>Backend: http://localhost:8000/predict-video</p>
+      <p>Frontend: http://localhost:3000</p>
+      <p>Backend: http://localhost:8000</p>
     </footer>
   </div>
 
