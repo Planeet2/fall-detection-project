@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Data and model files
+dataset/
+features/
+*.npy
+*.pth
+*.pt
+
+# Backend uploads
+uploads/
+
+# Videos
+*.mp4
+*.mov
+*.avi
+*.webm
+
+# Environment
+.env
