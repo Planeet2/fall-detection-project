@@ -1,0 +1,172 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f3f5f7;
+  color: #1f2933;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.header h1 {
+  margin: 0 0 10px;
+  font-size: 36px;
+}
+
+.header p {
+  margin: 0;
+  color: #52606d;
+  font-size: 18px;
+}
+
+.card {
+  max-width: 760px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 18px;
+  padding: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+.upload-section h2,
+.result-section h2,
+.error-section h2 {
+  margin-top: 0;
+}
+
+.file-label {
+  display: inline-block;
+  padding: 12px 20px;
+  background: #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: 0.2s;
+}
+
+.file-label:hover {
+  background: #d1d5db;
+}
+
+.file-input {
+  display: none;
+}
+
+.file-name {
+  margin: 15px 0;
+  color: #52606d;
+}
+
+.video-preview {
+  width: 100%;
+  max-height: 360px;
+  margin: 15px 0;
+  border-radius: 12px;
+  background: #111827;
+}
+
+.button {
+  width: 100%;
+  padding: 14px 20px;
+  margin-top: 15px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.button:hover {
+  background: #1d4ed8;
+}
+
+.button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.loading {
+  margin-top: 15px;
+  color: #2563eb;
+  font-weight: bold;
+}
+
+.result-section {
+  margin-top: 30px;
+}
+
+.result-box {
+  padding: 20px;
+  border-radius: 14px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.result-box.safe {
+  background: #dcfce7;
+  border: 2px solid #22c55e;
+}
+
+.result-box.fall {
+  background: #fee2e2;
+  border: 2px solid #ef4444;
+}
+
+.result-label {
+  margin: 0;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.result-box.safe .result-label {
+  color: #15803d;
+}
+
+.result-box.fall .result-label {
+  color: #b91c1c;
+}
+
+.result-message {
+  margin: 8px 0 0;
+  color: #374151;
+}
+
+.details {
+  background: #f9fafb;
+  padding: 18px;
+  border-radius: 12px;
+}
+
+.details p {
+  margin: 10px 0;
+}
+
+.error-section {
+  margin-top: 30px;
+  background: #fee2e2;
+  border: 2px solid #ef4444;
+  padding: 18px;
+  border-radius: 12px;
+  color: #991b1b;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 25px;
+  color: #6b7280;
+  font-size: 14px;
+}

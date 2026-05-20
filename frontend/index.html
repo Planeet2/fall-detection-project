@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fall Detection System</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <h1>Fall Detection System</h1>
+      <p>
+        Загрузите видео, и система определит, было ли падение человека.
+      </p>
+    </header>
+
+    <main class="card">
+      <section class="upload-section">
+        <h2>Загрузка видео</h2>
+
+        <label class="file-label" for="videoInput">
+          Выбрать видео
+        </label>
+
+        <input
+          id="videoInput"
+          class="file-input"
+          type="file"
+          accept="video/mp4,video/quicktime,video/x-msvideo,video/webm"
+        />
+
+        <p id="fileName" class="file-name">
+          Файл не выбран
+        </p>
+
+        <video id="videoPreview" class="video-preview" controls hidden></video>
+
+        <button id="analyzeButton" class="button" disabled>
+          Analyze Video
+        </button>
+
+        <p id="loadingText" class="loading" hidden>
+          Видео анализируется, подождите...
+        </p>
+      </section>
+
+      <section id="resultSection" class="result-section" hidden>
+        <h2>Результат</h2>
+
+        <div id="resultBox" class="result-box">
+          <p id="resultLabel" class="result-label">—</p>
+          <p id="resultMessage" class="result-message">—</p>
+        </div>
+
+        <div class="details">
+          <p>
+            <strong>Вероятность падения:</strong>
+            <span id="probabilityValue">—</span>
+          </p>
+
+          <p>
+            <strong>Обработано кадров:</strong>
+            <span id="framesValue">—</span>
+          </p>
+
+          <p>
+            <strong>Проанализировано окон:</strong>
+            <span id="windowsValue">—</span>
+          </p>
+        </div>
+      </section>
+
+      <section id="errorSection" class="error-section" hidden>
+        <h2>Ошибка</h2>
+        <p id="errorMessage">Что-то пошло не так.</p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Backend: http://localhost:8000/predict-video</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -44,10 +44,6 @@ def get_best_person_keypoints(yolo_result):
 
 
 def process_folder(folder_path):
-    """
-    Обрабатывает одну папку с кадрами.
-    Возвращает массив признаков: количество_кадров x 51.
-    """
     video_features = []
 
     images = sorted([
