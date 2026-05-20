@@ -10,7 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 
-FEATURES_DIR = "../features/"
+FEATURES_DIR = "./features/"
 
 SEQ_LEN = 30
 INPUT_SIZE = 51       
