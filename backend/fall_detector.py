@@ -51,12 +51,6 @@ class FallDetectionLSTM(nn.Module):
 
 
 def normalize_sequence(seq):
-    """
-    seq shape: (SEQ_LEN, 51)
-
-    51 = 17 keypoints * 3 значения:
-    x, y, confidence
-    """
     seq = np.asarray(seq, dtype=np.float32).copy()
 
     if seq.ndim != 2 or seq.shape[1] != INPUT_SIZE:
@@ -218,16 +212,29 @@ class FallDetector:
             status = "fall"
             label = "FALL DETECTED"
             message = "Fall detected"
+            is_fall = True
+            risk_level = "high"
+        elif max_probability >= 0.4:
+            status = "warning"
+            label = "WARNING"
+            message = "Possible fall risk"
+            is_fall = False
+            risk_level = "medium"
         else:
             status = "safe"
             label = "SAFE"
             message = "No fall detected"
+            is_fall = False
+            risk_level = "low"
 
         return {
             "status": status,
+            "is_fall": is_fall,
+            "risk_level": risk_level,
             "fall_probability": max_probability,
+            "fall_probability_percent": round(max_probability * 100, 2),
             "label": label,
             "message": message,
             "frames_processed": frame_count,
             "windows_analyzed": len(fall_probabilities)
-        }
+}

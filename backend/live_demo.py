@@ -34,12 +34,7 @@ print(f"Инференс на устройстве: {device}")
 
 
 def normalize_sequence(seq):
-    """
-    Нормализует последовательность keypoints перед подачей в LSTM.
-
-    Вход:
-        seq shape: (SEQ_LEN, 51)
-    """
+    
     seq = np.asarray(seq, dtype=np.float32).copy()
 
     if seq.ndim != 2 or seq.shape[1] != INPUT_SIZE:
