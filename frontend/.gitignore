@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+backend/logs/
+backend/uploads/
+frontend/node_modules/
+frontend/dist/
