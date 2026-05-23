@@ -17,6 +17,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notifyStatus, setNotifyStatus] = useState(null);
 
   const allowedFormatsText = useMemo(() => {
     if (!modelInfo?.supported_formats) {
@@ -119,6 +120,7 @@ function App() {
 
     setError("");
     setResult(null);
+    setNotifyStatus(null);
     setSelectedFile(file || null);
 
     if (videoPreview) {
@@ -144,6 +146,7 @@ function App() {
     setLoading(true);
     setError("");
     setResult(null);
+    setNotifyStatus(null);
 
     const formData = new FormData();
     formData.append("file", selectedFile);
@@ -193,17 +196,51 @@ function App() {
     }
   }
 
+
+  async function handleMockNotify() {
+    if (!result?.agent?.family_message) {
+      return;
+    }
+
+    try {
+      setNotifyStatus("sending");
+
+      const response = await fetch(`${API_URL}/mock-notify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          elder_id: "elder_001",
+          contact_name: "Family member / Caregiver",
+          message: result.agent.family_message
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Не удалось отправить уведомление.");
+      }
+
+      setNotifyStatus(`sent at ${data.sent_at}`);
+    } catch (err) {
+      setNotifyStatus(err.message || "notification error");
+    }
+  }
+
   const currentResult = result || stats?.latest_detection;
 
   return (
     <main className="app">
       <section className="hero">
         <div>
-          <p className="eyebrow">AI Fall Detection System</p>
-          <h1>Eldery Camera Check</h1>
+          <p className="eyebrow">Yuanjing Wanwu Elderly Care Agent Prototype</p>
+          <h1>ElderGuard Agent</h1>
           <p className="heroText">
-            Система анализирует видео, находит скелет человека через YOLOv8 Pose
-            и определяет вероятность падения с помощью LSTM-модели.
+            Прототип银发守护智能体: локальный модуль видеоанализа определяет
+            падение, а agent workflow формирует решение, сообщение пожилому
+            человеку, уведомление семье и отчёт об инциденте.
           </p>
         </div>
 
@@ -333,6 +370,72 @@ function App() {
         </div>
       </section>
 
+
+      {result?.agent && (
+        <section className={`card agentCard ${getStatusClass(result)}`}>
+          <div className="agentHeader">
+            <div>
+              <p className="eyebrow">元景万悟 Agent Prototype</p>
+              <h2>3. Agent Decision / Workflow</h2>
+              <p className="muted">
+                Локальная имитация слоя 元景万悟: backend отдаёт структурированное
+                событие, а агент выбирает дальнейшее действие.
+              </p>
+            </div>
+
+            <span className={`badge ${getStatusClass(result)}`}>
+              {result.agent.decision_label}
+            </span>
+          </div>
+
+          <div className="agentGrid">
+            <div className="agentBox">
+              <span>Decision</span>
+              <strong>{result.agent.decision}</strong>
+              <p>Next action: {result.agent.next_action}</p>
+            </div>
+
+            <div className="agentBox">
+              <span>Message to elder</span>
+              <strong>{result.agent.elder_message}</strong>
+            </div>
+
+            <div className="agentBox familyBox">
+              <span>Message to family</span>
+              <strong>
+                {result.agent.family_message || "No family notification required"}
+              </strong>
+
+              {result.agent.family_message && (
+                <button
+                  className="dangerButton notifyButton"
+                  type="button"
+                  onClick={handleMockNotify}
+                  disabled={notifyStatus === "sending"}
+                >
+                  {notifyStatus === "sending"
+                    ? "Sending..."
+                    : "Send mock notification"}
+                </button>
+              )}
+
+              {notifyStatus && (
+                <p className="notifyStatus">Notification status: {notifyStatus}</p>
+              )}
+            </div>
+
+            <div className="agentBox">
+              <span>Workflow actions</span>
+              <ul className="workflowList">
+                {result.agent.actions.map((action, index) => (
+                  <li key={index}>{action}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="statsGrid">
         <StatCard title="Всего проверок" value={stats?.total_detections ?? 0} />
         <StatCard title="Падений" value={stats?.fall_detections ?? 0} />
@@ -351,7 +454,7 @@ function App() {
       <section className="card historyCard">
         <div className="historyHeader">
           <div>
-            <h2>3. История детекций</h2>
+            <h2>4. История детекций</h2>
             <p className="muted">
               Backend сохраняет последние проверки в журнал детекций.
             </p>
@@ -392,6 +495,7 @@ function App() {
                   <th>Риск</th>
                   <th>Вероятность</th>
                   <th>Кадры</th>
+                  <th>Agent</th>
                 </tr>
               </thead>
 
@@ -408,6 +512,7 @@ function App() {
                     <td>{item.risk_level || "—"}</td>
                     <td>{item.fall_probability_percent ?? 0}%</td>
                     <td>{item.frames_processed ?? 0}</td>
+                    <td>{item.agent_decision || "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -417,6 +522,41 @@ function App() {
       </section>
 
 <section className="infoGrid">
+
+  <div className="card dailyCareCard">
+    <h2>Daily Care / 生活关怀</h2>
+    <p className="muted">
+      Демонстрационный блок заботы: в реальной версии эти правила можно хранить
+      в knowledge base 元景万悟.
+    </p>
+
+    <div className="monitorList">
+      <div>
+        <span className="monitorIcon">💊</span>
+        <div>
+          <strong>Medicine reminder</strong>
+          <p>20:00 — blood pressure medicine reminder</p>
+        </div>
+      </div>
+
+      <div>
+        <span className="monitorIcon">🌤️</span>
+        <div>
+          <strong>Weather reminder</strong>
+          <p>Check weather before going outside</p>
+        </div>
+      </div>
+
+      <div>
+        <span className="monitorIcon">💬</span>
+        <div>
+          <strong>Emotional care</strong>
+          <p>Gentle voice interaction and family contact scenario</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div className="card patientCard">
     <h2>Patient Monitoring</h2>
     <p className="muted">

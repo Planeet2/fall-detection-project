@@ -5,6 +5,7 @@ from uuid import uuid4
 from datetime import datetime
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
 from fall_detector import FallDetector
@@ -59,6 +60,73 @@ def save_detections(detections):
         json.dump(detections, file, ensure_ascii=False, indent=2)
 
 
+def build_agent_decision(result):
+    """Local prototype of the Yuanjing Wanwu elderly-care agent decision layer."""
+    status = result.get("status", "safe")
+    risk_level = result.get("risk_level", "low")
+    probability = result.get("fall_probability_percent") or 0
+
+    if status == "fall" or risk_level == "high" or probability >= 70:
+        return {
+            "decision": "emergency_workflow",
+            "decision_label": "Emergency workflow started",
+            "risk_level": "high",
+            "elder_message": (
+                "爷爷/奶奶，系统检测到您可能摔倒了。"
+                "请问您现在还好吗？如果需要帮助，请说“需要帮助”。"
+            ),
+            "family_message": (
+                f"监测到老人可能发生跌倒，跌倒概率为 {probability}%。"
+                "系统已准备进行语音确认，请尽快查看。"
+            ),
+            "actions": [
+                "Voice confirmation requested",
+                "Family notification prepared",
+                "Incident report generated",
+                "Event saved to detection log"
+            ],
+            "next_action": "wait_for_elder_confirmation"
+        }
+
+    if status == "warning" or risk_level == "medium" or probability >= 30:
+        return {
+            "decision": "warning_check",
+            "decision_label": "Warning check started",
+            "risk_level": "medium",
+            "elder_message": (
+                "检测到您的活动状态可能不稳定。"
+                "请先坐下休息，并确认您现在是否安全。"
+            ),
+            "family_message": "",
+            "actions": [
+                "Gentle voice check requested",
+                "Warning event saved to detection log",
+                "Continue observation"
+            ],
+            "next_action": "observe_status"
+        }
+
+    return {
+        "decision": "normal_care",
+        "decision_label": "Normal activity",
+        "risk_level": "low",
+        "elder_message": "当前活动状态正常。请注意休息，保持安全。",
+        "family_message": "",
+        "actions": [
+            "Event saved to detection log",
+            "Daily care suggestion available"
+        ],
+        "next_action": "no_action_required"
+    }
+
+
+class NotifyRequest(BaseModel):
+    elder_id: str = "elder_001"
+    contact_name: str = "Family member"
+    message: str
+
+
+
 def add_detection_log(original_filename, result):
     detections = load_detections()
 
@@ -74,7 +142,9 @@ def add_detection_log(original_filename, result):
         "label": result.get("label"),
         "message": result.get("message"),
         "frames_processed": result.get("frames_processed"),
-        "windows_analyzed": result.get("windows_analyzed")
+        "windows_analyzed": result.get("windows_analyzed"),
+        "agent_decision": result.get("agent", {}).get("decision"),
+        "agent_next_action": result.get("agent", {}).get("next_action")
     }
 
     detections.insert(0, detection_record)
@@ -134,6 +204,7 @@ async def predict_video(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
 
         result = detector.predict_video(file_path)
+        result["agent"] = build_agent_decision(result)
         detection_record = add_detection_log(original_filename, result)
 
         return {
@@ -148,6 +219,18 @@ async def predict_video(file: UploadFile = File(...)):
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
+
+
+@app.post("/mock-notify")
+def mock_notify(data: NotifyRequest):
+    return {
+        "status": "sent",
+        "channel": "mock_sms",
+        "elder_id": data.elder_id,
+        "contact_name": data.contact_name,
+        "message": data.message,
+        "sent_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
 
 
 @app.get("/detections")
