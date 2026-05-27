@@ -16,3 +16,65 @@ YOLO posture coordinate
 14 — right_knee
 15 — left_ankle
 16 — right_ankle
+
+Запуск backend
+
+cd "/Users/mihail/Desktop/проекты/Eldery camera_check/backend"
+docker compose up -d
+uvicorn app.main:app --reload
+
+Backend будет здесь:
+
+http://127.0.0.1:8000
+http://127.0.0.1:8000/docs
+
+-----------------------------
+
+Запуск frontend
+
+Открой новое окно терминала и перейди в папку frontend. Например, если она лежит рядом с backend:
+
+cd "/Users/mihail/Desktop/проекты/Eldery camera_check/frontend"
+
+
+Запустить frontend:
+
+npm run dev
+
+
+Точный адрес терминал покажет после запуска.
+
+-----------------------------
+
+
+Проверка БД
+
+В новом терминале:
+
+cd "/Users/mihail/Desktop/проекты/Eldery camera_check/backend"
+docker exec -it elderly_check_postgres psql -U elderly_user -d elderly_check
+
+Внутри PostgreSQL:
+
+\dt
+SELECT * FROM detections ORDER BY created_at DESC LIMIT 10;
+\q
+Полный порядок запуска
+1. Запустить PostgreSQL через Docker
+2. Запустить backend
+3. Запустить frontend
+4. Открыть frontend в браузере
+5. Загрузить видео
+6. Проверить, что запись появилась в /detections и в PostgreSQL
+
+-----------------------------
+
+
+Открой второй терминал:
+
+cd "/Users/mihail/Desktop/проекты/Eldery camera_check/frontend"
+npm run dev
+
+Frontend должен открыться здесь:
+
+http://localhost:3000

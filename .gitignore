@@ -1,27 +1,61 @@
-# macOS
-.DS_Store
-
 # Python
 __pycache__/
 *.pyc
-.venv/
+*.pyo
+*.pyd
+.Python
 venv/
-
-# Data and model files
-dataset/
-features/
-*.npy
-*.pth
-*.pt
-
-# Backend uploads
-uploads/
-
-# Videos
-*.mp4
-*.mov
-*.avi
-*.webm
+.venv/
+env/
 
 # Environment
 .env
+
+# ML models and heavy files
+*.pth
+*.pt
+*.onnx
+*.npy
+
+# Uploads / logs / local data
+backend/uploads/
+backend/logs/
+uploads/
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.next/
+.vite/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Docker local data
+postgres_data/
+dataset/
+
+# Datasets
+dataset/
+features/
+
+# ML weights
+*.pth
+*.pt
+*.npy
+
+# Environment
+.env
+
+# Local files
+backend/uploads/
+backend/logs/
