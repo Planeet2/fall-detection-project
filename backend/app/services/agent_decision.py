@@ -1,5 +1,4 @@
 def build_agent_decision(result):
-    """Local prototype of the Yuanjing Wanwu elderly-care agent decision layer."""
     status = result.get("status", "safe")
     risk_level = result.get("risk_level", "low")
     probability = result.get("fall_probability_percent") or 0

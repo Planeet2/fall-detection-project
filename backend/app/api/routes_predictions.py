@@ -19,7 +19,6 @@ CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 
 async def save_upload_file_with_limit(file: UploadFile, file_path: str) -> int:
-    """Save uploaded file by chunks and reject files larger than MAX_UPLOAD_MB."""
     total_size = 0
 
     with open(file_path, "wb") as buffer:

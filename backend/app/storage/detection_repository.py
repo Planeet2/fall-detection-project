@@ -136,11 +136,7 @@ def _parse_created_at(value):
 
 
 def migrate_json_logs_to_postgres():
-    """One-time migration from old logs/detections.json into PostgreSQL.
-
-    The old JSON file is kept as a backup. We only import it when the database
-    table is empty, so repeated app restarts do not create duplicates.
-    """
+  
     if not _database_is_empty():
         return
 
