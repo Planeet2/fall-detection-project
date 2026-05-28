@@ -47,6 +47,8 @@ class FallDetector:
         self.lstm_model.load_state_dict(state_dict)
         self.lstm_model.eval()
 
+        self.live_sequence_buffer = []
+
         print("FallDetector is ready.")
 
     def get_best_person_keypoints(self, yolo_result):
@@ -172,4 +174,58 @@ class FallDetector:
             "message": message,
             "frames_processed": frame_count,
             "windows_analyzed": len(fall_probabilities),
+        }
+    def predict_frame(self, frame):
+        frame_features = self.extract_frame_features(frame)
+
+        self.live_sequence_buffer.append(frame_features)
+
+        if len(self.live_sequence_buffer) > SEQ_LEN:
+            self.live_sequence_buffer.pop(0)
+
+        if len(self.live_sequence_buffer) < SEQ_LEN:
+            return {
+                "status": "collecting",
+                "is_fall": False,
+                "risk_level": "low",
+                "fall_probability": 0.0,
+                "fall_probability_percent": 0.0,
+                "label": "COLLECTING",
+                "message": "Collecting frames for live detection",
+                "frames_collected": len(self.live_sequence_buffer),
+                "frames_required": SEQ_LEN,
+            }
+
+        sequence = np.array(self.live_sequence_buffer, dtype=np.float32)
+        fall_probability = self.predict_sequence(sequence)
+
+        if fall_probability >= FALL_PROBABILITY_THRESHOLD:
+            status = "fall"
+            label = "FALL DETECTED"
+            message = "Fall detected"
+            is_fall = True
+            risk_level = "high"
+        elif fall_probability >= WARNING_PROBABILITY_THRESHOLD:
+            status = "warning"
+            label = "WARNING"
+            message = "Possible fall risk"
+            is_fall = False
+            risk_level = "medium"
+        else:
+            status = "safe"
+            label = "SAFE"
+            message = "No fall detected"
+            is_fall = False
+            risk_level = "low"
+
+        return {
+            "status": status,
+            "is_fall": is_fall,
+            "risk_level": risk_level,
+            "fall_probability": fall_probability,
+            "fall_probability_percent": round(fall_probability * 100, 2),
+            "label": label,
+            "message": message,
+            "frames_collected": len(self.live_sequence_buffer),
+            "frames_required": SEQ_LEN,
         }

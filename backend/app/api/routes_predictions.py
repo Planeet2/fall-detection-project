@@ -8,6 +8,10 @@ from app.services.agent_decision import build_agent_decision
 from app.services.fall_detector import FallDetector
 from app.storage.detection_repository import add_detection_log
 
+import cv2
+import numpy as np
+from fastapi import APIRouter, UploadFile, File, HTTPException
+
 router = APIRouter(tags=["predictions"])
 
 detector = FallDetector()
@@ -83,3 +87,45 @@ async def predict_video(file: UploadFile = File(...)):
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
+
+@router.post("/predict-frame")
+async def predict_frame(file: UploadFile = File(...)):
+    original_filename = file.filename
+
+    if not original_filename:
+        raise HTTPException(status_code=400, detail="No frame uploaded.")
+
+    _, extension = os.path.splitext(original_filename)
+    extension = extension.lower()
+
+    if extension not in {".jpg", ".jpeg", ".png", ".webp"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported frame format. Allowed formats: .jpg, .jpeg, .png, .webp"
+        )
+
+    try:
+        content = await file.read()
+
+        np_array = np.frombuffer(content, np.uint8)
+        frame = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
+
+        if frame is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not read image frame."
+            )
+
+        result = detector.predict_frame(frame)
+        result["agent"] = build_agent_decision(result)
+
+        return result
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Live frame prediction failed."
+        )
