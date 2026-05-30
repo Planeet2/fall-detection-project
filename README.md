@@ -269,6 +269,27 @@ POST /mock-notify
 
 This endpoint simulates family notification for the demo version.
 
+### Yuanjing Agent Test
+
+```http
+POST /agent/test
+```
+
+Example payload:
+
+```json
+{
+  "elder_name": "Ivan",
+  "age": 78,
+  "event": "fall_detected",
+  "confidence": 0.91,
+  "location": "bedroom",
+  "has_chronic_disease": true
+}
+```
+
+If `YUANJING_API_KEY` is not configured, this endpoint returns a safe fallback response instead of failing.
+
 ---
 
 ## 7. How to Run

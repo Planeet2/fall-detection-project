@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -26,6 +27,17 @@ def _load_env_file(env_path: Path = ENV_FILE):
 
 def _get_str(name: str, default: str) -> str:
     return os.getenv(name, default)
+
+
+def _get_optional_str(name: str) -> str | None:
+    value = os.getenv(name)
+
+    if value is None:
+        return None
+
+    value = value.strip()
+
+    return value or None
 
 
 def _get_path(name: str, default: str) -> str:
@@ -131,4 +143,25 @@ CORS_ORIGINS = _get_list(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ],
+)
+
+YUANJING_API_KEY = _get_optional_str("YUANJING_API_KEY")
+YUANJING_BASE_URL = _get_str(
+    "YUANJING_BASE_URL",
+    "https://maas-api.ai-yuanjing.com/openapi/compatible-mode/v1",
+)
+YUANJING_MODEL = _get_str("YUANJING_MODEL", "deepseek-v3")
+
+
+@dataclass(frozen=True)
+class Settings:
+    yuanjing_api_key: str | None = None
+    yuanjing_base_url: str = "https://maas-api.ai-yuanjing.com/openapi/compatible-mode/v1"
+    yuanjing_model: str = "deepseek-v3"
+
+
+settings = Settings(
+    yuanjing_api_key=YUANJING_API_KEY,
+    yuanjing_base_url=YUANJING_BASE_URL,
+    yuanjing_model=YUANJING_MODEL,
 )

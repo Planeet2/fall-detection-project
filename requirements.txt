@@ -8,3 +8,4 @@ ultralytics
 psycopg2-binary
 scikit-learn
 httpx
+openai

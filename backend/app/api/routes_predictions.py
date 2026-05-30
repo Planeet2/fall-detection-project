@@ -69,6 +69,8 @@ async def predict_video(file: UploadFile = File(...)):
         detector = get_detector()
         result = await run_in_threadpool(detector.predict_video, file_path)
         result["agent"] = build_agent_decision(result)
+        # TODO: After fall detection is confirmed, call analyze_fall_event(event_data),
+        # save agent_result to PostgreSQL, and trigger notification if notify_caregiver is true.
 
         detection_id = None
         created_at = None
