@@ -1,13 +1,16 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
-from app.storage.detection_repository import load_detections
+from app.storage.detection_repository import StorageUnavailable, load_detections
 
 router = APIRouter(tags=["stats"])
 
 
 @router.get("/stats")
 def get_stats():
-    detections = load_detections()
+    try:
+        detections = load_detections()
+    except StorageUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     total_detections = len(detections)
 

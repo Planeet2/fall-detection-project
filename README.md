@@ -203,6 +203,14 @@ Save event log
 GET /health
 ```
 
+### Readiness Check
+
+```http
+GET /ready
+```
+
+This endpoint checks whether the model files and PostgreSQL storage are ready.
+
 ### Model Info
 
 ```http
@@ -282,7 +290,7 @@ pip install -r ../requirements.txt
 Run backend:
 
 ```bash
-uvicorn app:app --reload
+uvicorn app.main:app --reload
 ```
 
 Backend will run at:

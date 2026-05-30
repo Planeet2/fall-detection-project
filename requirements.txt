@@ -1,1 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+opencv-python
+numpy
+torch
+ultralytics
 psycopg2-binary
+scikit-learn
+httpx

@@ -2,6 +2,7 @@ import json
 import os
 from contextlib import contextmanager
 from datetime import datetime
+from typing import Optional
 from uuid import uuid4
 
 import psycopg2
@@ -55,20 +56,53 @@ COLUMNS = [
     "agent_next_action",
 ]
 
-connection_pool = SimpleConnectionPool(
-    minconn=1,
-    maxconn=5,
-    dsn=DATABASE_URL,
-)
+
+class StorageUnavailable(RuntimeError):
+    pass
+
+
+connection_pool: Optional[SimpleConnectionPool] = None
+storage_initialized = False
+last_storage_error: Optional[str] = None
+
+
+def _storage_error(exc: Exception) -> StorageUnavailable:
+    global last_storage_error
+    last_storage_error = str(exc)
+    return StorageUnavailable("Detection storage is unavailable. Check PostgreSQL connection.")
+
+
+def _get_connection_pool() -> SimpleConnectionPool:
+    global connection_pool
+
+    if connection_pool is not None:
+        return connection_pool
+
+    try:
+        connection_pool = SimpleConnectionPool(
+            minconn=1,
+            maxconn=5,
+            dsn=DATABASE_URL,
+        )
+    except psycopg2.Error as exc:
+        raise _storage_error(exc) from exc
+
+    return connection_pool
 
 
 @contextmanager
 def get_connection():
-    connection = connection_pool.getconn()
+    pool = _get_connection_pool()
+    connection = None
+
     try:
+        connection = pool.getconn()
         yield connection
+    except psycopg2.Error as exc:
+        raise _storage_error(exc) from exc
     finally:
-        connection_pool.putconn(connection)
+        if connection is not None:
+            pool.putconn(connection)
 
 
 def init_database():
@@ -77,6 +111,59 @@ def init_database():
             cursor.execute(CREATE_TABLE_SQL)
             cursor.execute(CREATE_INDEX_SQL)
         connection.commit()
+
+
+def initialize_storage():
+    global storage_initialized, last_storage_error
+
+    if storage_initialized:
+        return
+
+    init_database()
+    migrate_json_logs_to_postgres()
+
+    storage_initialized = True
+    last_storage_error = None
+
+
+def close_storage():
+    global connection_pool, storage_initialized
+
+    if connection_pool is not None:
+        connection_pool.closeall()
+
+    connection_pool = None
+    storage_initialized = False
+
+
+def check_storage_health():
+    global last_storage_error
+
+    try:
+        initialize_storage()
+
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+
+        return {
+            "ok": True,
+            "error": None,
+        }
+    except StorageUnavailable as exc:
+        return {
+            "ok": False,
+            "error": str(exc),
+            "details": last_storage_error,
+        }
+    except Exception as exc:
+        last_storage_error = str(exc)
+        return {
+            "ok": False,
+            "error": "Detection storage health check failed.",
+            "details": last_storage_error,
+        }
 
 
 def _format_created_at(value):
@@ -136,7 +223,6 @@ def _parse_created_at(value):
 
 
 def migrate_json_logs_to_postgres():
-  
     if not _database_is_empty():
         return
 
@@ -179,6 +265,8 @@ def migrate_json_logs_to_postgres():
 
 
 def load_detections():
+    initialize_storage()
+
     with get_connection() as connection:
         with connection.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
@@ -194,6 +282,8 @@ def load_detections():
 
 
 def add_detection_log(original_filename, result):
+    initialize_storage()
+
     detection_record = {
         "id": str(uuid4()),
         "filename": original_filename,
@@ -229,11 +319,9 @@ def add_detection_log(original_filename, result):
 
 
 def clear_detection_logs():
+    initialize_storage()
+
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM detections")
         connection.commit()
-
-
-init_database()
-migrate_json_logs_to_postgres()

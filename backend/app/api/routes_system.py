@@ -1,6 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
 
 from app.config import ALLOWED_EXTENSIONS, FALL_PROBABILITY_THRESHOLD, SEQ_LEN
+from app.services.detector_provider import check_model_health
+from app.storage.detection_repository import check_storage_health
 
 router = APIRouter(tags=["system"])
 
@@ -17,6 +19,24 @@ def root():
 def health_check():
     return {
         "status": "ok",
+    }
+
+
+@router.get("/ready")
+def readiness_check(response: Response):
+    model = check_model_health()
+    storage = check_storage_health()
+    is_ready = model["ok"] and storage["ok"]
+
+    if not is_ready:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+    return {
+        "status": "ready" if is_ready else "degraded",
+        "checks": {
+            "model": model,
+            "storage": storage,
+        },
     }
 
 

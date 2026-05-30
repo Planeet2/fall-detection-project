@@ -3,6 +3,36 @@ def build_agent_decision(result):
     risk_level = result.get("risk_level", "low")
     probability = result.get("fall_probability_percent") or 0
 
+    if status == "no_person":
+        return {
+            "decision": "tracking_lost",
+            "decision_label": "Person pose not reliable",
+            "risk_level": "low",
+            "elder_message": "当前画面未稳定识别到人体姿态，请保持在摄像头可见范围内。",
+            "family_message": "",
+            "actions": [
+                "Ignore low-quality live frame",
+                "Keep searching for reliable person pose",
+                "Reset live buffer if tracking is lost for too long",
+            ],
+            "next_action": "continue_pose_tracking",
+        }
+
+    if status == "collecting":
+        return {
+            "decision": "collect_live_frames",
+            "decision_label": "Collecting reliable live frames",
+            "risk_level": "low",
+            "elder_message": "系统正在稳定识别您的活动状态，请稍等。",
+            "family_message": "",
+            "actions": [
+                "Collect reliable pose frames",
+                "Wait for enough movement sequence data",
+                "Do not trigger emergency workflow yet",
+            ],
+            "next_action": "continue_collecting_frames",
+        }
+
     if status == "fall" or risk_level == "high" or probability >= 70:
         return {
             "decision": "emergency_workflow",

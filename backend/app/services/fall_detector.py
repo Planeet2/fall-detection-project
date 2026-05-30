@@ -13,10 +13,13 @@ from app.config import (
     NUM_CLASSES,
     SEQ_LEN,
     WARNING_PROBABILITY_THRESHOLD,
+    YOLO_CONFIDENCE,
     YOLO_MODEL_NAME,
 )
 from app.models.lstm_model import FallDetectionLSTM
 from app.services.device import get_device
+from app.services.live_smoothing import LiveFallSmoother
+from app.services.pose_quality import select_best_person_keypoints
 from app.services.preprocessing import normalize_sequence
 
 
@@ -47,48 +50,44 @@ class FallDetector:
         self.lstm_model.load_state_dict(state_dict)
         self.lstm_model.eval()
 
-        self.live_sequence_buffer = []
+        self.live_state = LiveFallSmoother()
 
         print("FallDetector is ready.")
 
     def get_best_person_keypoints(self, yolo_result):
-        if yolo_result.keypoints is None:
-            return None
+        keypoints, _ = select_best_person_keypoints(yolo_result)
+        return keypoints
 
-        if yolo_result.keypoints.data is None:
-            return None
-
-        keypoints_data = yolo_result.keypoints.data
-
-        if len(keypoints_data) == 0:
-            return None
-
-        keypoints_np = keypoints_data.cpu().numpy()
-
-        confidences = keypoints_np[:, :, 2]
-        mean_confidences = confidences.mean(axis=1)
-
-        best_person_idx = int(np.argmax(mean_confidences))
-
-        return keypoints_np[best_person_idx]
-
-    def extract_frame_features(self, frame):
-        results = self.yolo_model(frame, verbose=False)
+    def extract_pose_features(self, frame, previous_center=None):
+        results = self.yolo_model(frame, verbose=False, conf=YOLO_CONFIDENCE)
 
         if len(results) == 0:
-            return np.zeros(INPUT_SIZE, dtype=np.float32)
+            return None, {"person_detected": False, "reason": "no_yolo_result"}
 
-        keypoints = self.get_best_person_keypoints(results[0])
+        keypoints, pose_info = select_best_person_keypoints(
+            results[0],
+            previous_center=previous_center,
+            frame_shape=frame.shape,
+        )
 
         if keypoints is None:
-            return np.zeros(INPUT_SIZE, dtype=np.float32)
+            return None, pose_info
 
         frame_features = keypoints.flatten()
 
         if len(frame_features) != INPUT_SIZE:
+            pose_info["reason"] = "invalid_feature_size"
+            return None, pose_info
+
+        return frame_features.astype(np.float32), pose_info
+
+    def extract_frame_features(self, frame):
+        frame_features, _ = self.extract_pose_features(frame)
+
+        if frame_features is None:
             return np.zeros(INPUT_SIZE, dtype=np.float32)
 
-        return frame_features.astype(np.float32)
+        return frame_features
 
     def predict_sequence(self, sequence):
         normalized_sequence = normalize_sequence(sequence)
@@ -115,6 +114,8 @@ class FallDetector:
         sequence_buffer = []
         fall_probabilities = []
         frame_count = 0
+        reliable_pose_frames = 0
+        previous_center = None
 
         while True:
             ret, frame = cap.read()
@@ -124,7 +125,19 @@ class FallDetector:
 
             frame_count += 1
 
-            frame_features = self.extract_frame_features(frame)
+            frame_features, pose_info = self.extract_pose_features(
+                frame,
+                previous_center=previous_center,
+            )
+
+            if frame_features is None:
+                continue
+
+            center = pose_info.get("center")
+            if center and len(center) == 2:
+                previous_center = (float(center[0]), float(center[1]))
+
+            reliable_pose_frames += 1
             sequence_buffer.append(frame_features)
 
             if len(sequence_buffer) > SEQ_LEN:
@@ -145,7 +158,19 @@ class FallDetector:
         else:
             max_probability = float(np.max(fall_probabilities))
 
-        if max_probability >= FALL_PROBABILITY_THRESHOLD:
+        if reliable_pose_frames == 0:
+            status = "no_person"
+            label = "NO PERSON"
+            message = "No reliable person pose detected in video"
+            is_fall = False
+            risk_level = "low"
+        elif len(fall_probabilities) == 0:
+            status = "safe"
+            label = "SAFE"
+            message = "Not enough reliable pose frames for fall sequence"
+            is_fall = False
+            risk_level = "low"
+        elif max_probability >= FALL_PROBABILITY_THRESHOLD:
             status = "fall"
             label = "FALL DETECTED"
             message = "Fall detected"
@@ -173,59 +198,24 @@ class FallDetector:
             "label": label,
             "message": message,
             "frames_processed": frame_count,
+            "reliable_pose_frames": reliable_pose_frames,
             "windows_analyzed": len(fall_probabilities),
         }
+
+    def reset_live_state(self):
+        self.live_state.reset()
+
     def predict_frame(self, frame):
-        frame_features = self.extract_frame_features(frame)
+        frame_features, pose_info = self.extract_pose_features(
+            frame,
+            previous_center=self.live_state.last_center,
+        )
 
-        self.live_sequence_buffer.append(frame_features)
+        if frame_features is None:
+            return self.live_state.mark_missing(pose_info)
 
-        if len(self.live_sequence_buffer) > SEQ_LEN:
-            self.live_sequence_buffer.pop(0)
-
-        if len(self.live_sequence_buffer) < SEQ_LEN:
-            return {
-                "status": "collecting",
-                "is_fall": False,
-                "risk_level": "low",
-                "fall_probability": 0.0,
-                "fall_probability_percent": 0.0,
-                "label": "COLLECTING",
-                "message": "Collecting frames for live detection",
-                "frames_collected": len(self.live_sequence_buffer),
-                "frames_required": SEQ_LEN,
-            }
-
-        sequence = np.array(self.live_sequence_buffer, dtype=np.float32)
-        fall_probability = self.predict_sequence(sequence)
-
-        if fall_probability >= FALL_PROBABILITY_THRESHOLD:
-            status = "fall"
-            label = "FALL DETECTED"
-            message = "Fall detected"
-            is_fall = True
-            risk_level = "high"
-        elif fall_probability >= WARNING_PROBABILITY_THRESHOLD:
-            status = "warning"
-            label = "WARNING"
-            message = "Possible fall risk"
-            is_fall = False
-            risk_level = "medium"
-        else:
-            status = "safe"
-            label = "SAFE"
-            message = "No fall detected"
-            is_fall = False
-            risk_level = "low"
-
-        return {
-            "status": status,
-            "is_fall": is_fall,
-            "risk_level": risk_level,
-            "fall_probability": fall_probability,
-            "fall_probability_percent": round(fall_probability * 100, 2),
-            "label": label,
-            "message": message,
-            "frames_collected": len(self.live_sequence_buffer),
-            "frames_required": SEQ_LEN,
-        }
+        return self.live_state.add_pose(
+            frame_features,
+            pose_info,
+            self.predict_sequence,
+        )

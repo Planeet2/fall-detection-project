@@ -3,22 +3,21 @@ from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from app.config import ALLOWED_EXTENSIONS, MAX_UPLOAD_MB, UPLOAD_DIR
-from app.services.agent_decision import build_agent_decision
-from app.services.fall_detector import FallDetector
-from app.storage.detection_repository import add_detection_log
-
 import cv2
 import numpy as np
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.concurrency import run_in_threadpool
+
+from app.config import ALLOWED_EXTENSIONS, MAX_FRAME_UPLOAD_MB, MAX_UPLOAD_MB, UPLOAD_DIR
+from app.services.agent_decision import build_agent_decision
+from app.services.detector_provider import ModelUnavailable, get_detector, reset_detector
+from app.storage.detection_repository import StorageUnavailable, add_detection_log
 
 router = APIRouter(tags=["predictions"])
-
-detector = FallDetector()
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+MAX_FRAME_UPLOAD_BYTES = MAX_FRAME_UPLOAD_MB * 1024 * 1024
 CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 
@@ -67,26 +66,55 @@ async def predict_video(file: UploadFile = File(...)):
     try:
         upload_size_bytes = await save_upload_file_with_limit(file, file_path)
 
-        result = detector.predict_video(file_path)
+        detector = get_detector()
+        result = await run_in_threadpool(detector.predict_video, file_path)
         result["agent"] = build_agent_decision(result)
-        detection_record = add_detection_log(original_filename, result)
+
+        detection_id = None
+        created_at = None
+        storage = {"saved": True, "error": None}
+
+        try:
+            detection_record = await run_in_threadpool(add_detection_log, original_filename, result)
+            detection_id = detection_record["id"]
+            created_at = detection_record["created_at"]
+        except StorageUnavailable as exc:
+            storage = {"saved": False, "error": str(exc)}
 
         return {
             **result,
-            "detection_id": detection_record["id"],
-            "created_at": detection_record["created_at"],
+            "detection_id": detection_id,
+            "created_at": created_at,
             "upload_size_bytes": upload_size_bytes,
+            "storage": storage,
         }
 
     except HTTPException:
         raise
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except ModelUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Video prediction failed.") from exc
 
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
+
+
+@router.post("/predict-frame/reset")
+def reset_live_prediction():
+    try:
+        reset_detector()
+    except ModelUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {
+        "status": "reset",
+        "message": "Live frame state was reset",
+    }
+
 
 @router.post("/predict-frame")
 async def predict_frame(file: UploadFile = File(...)):
@@ -105,7 +133,13 @@ async def predict_frame(file: UploadFile = File(...)):
         )
 
     try:
-        content = await file.read()
+        content = await file.read(MAX_FRAME_UPLOAD_BYTES + 1)
+
+        if len(content) > MAX_FRAME_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Frame is too large. Max upload size is {MAX_FRAME_UPLOAD_MB} MB.",
+            )
 
         np_array = np.frombuffer(content, np.uint8)
         frame = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
@@ -116,7 +150,8 @@ async def predict_frame(file: UploadFile = File(...)):
                 detail="Could not read image frame."
             )
 
-        result = detector.predict_frame(frame)
+        detector = get_detector()
+        result = await run_in_threadpool(detector.predict_frame, frame)
         result["agent"] = build_agent_decision(result)
 
         return result
@@ -124,8 +159,11 @@ async def predict_frame(file: UploadFile = File(...)):
     except HTTPException:
         raise
 
-    except Exception:
+    except ModelUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    except Exception as exc:
         raise HTTPException(
             status_code=500,
             detail="Live frame prediction failed."
-        )
+        ) from exc

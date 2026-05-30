@@ -1,13 +1,20 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
-from app.storage.detection_repository import clear_detection_logs, load_detections
+from app.storage.detection_repository import (
+    StorageUnavailable,
+    clear_detection_logs,
+    load_detections,
+)
 
 router = APIRouter(tags=["detections"])
 
 
 @router.get("/detections")
 def get_detections():
-    detections = load_detections()
+    try:
+        detections = load_detections()
+    except StorageUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return {
         "count": len(detections),
@@ -17,7 +24,10 @@ def get_detections():
 
 @router.get("/detections/latest")
 def get_latest_detection():
-    detections = load_detections()
+    try:
+        detections = load_detections()
+    except StorageUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     if len(detections) == 0:
         return {
@@ -32,7 +42,10 @@ def get_latest_detection():
 
 @router.delete("/detections")
 def clear_detections():
-    clear_detection_logs()
+    try:
+        clear_detection_logs()
+    except StorageUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return {
         "message": "Detection history cleared",
