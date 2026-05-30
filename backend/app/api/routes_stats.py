@@ -21,12 +21,22 @@ def get_stats():
 
     safe_detections = sum(
         1 for item in detections
-        if item.get("status") == "safe"
+        if item.get("status") in {"safe", "normal"}
     )
 
     warning_detections = sum(
         1 for item in detections
-        if item.get("status") == "warning"
+        if item.get("status") in {"warning", "suspicious"}
+    )
+
+    normal_detections = sum(
+        1 for item in detections
+        if item.get("status") in {"safe", "normal"}
+    )
+
+    suspicious_detections = sum(
+        1 for item in detections
+        if item.get("status") == "suspicious"
     )
 
     high_risk_count = sum(
@@ -59,6 +69,8 @@ def get_stats():
         "fall_detections": fall_detections,
         "safe_detections": safe_detections,
         "warning_detections": warning_detections,
+        "normal_detections": normal_detections,
+        "suspicious_detections": suspicious_detections,
         "high_risk_count": high_risk_count,
         "medium_risk_count": medium_risk_count,
         "low_risk_count": low_risk_count,

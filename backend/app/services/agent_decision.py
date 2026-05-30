@@ -2,6 +2,8 @@ def build_agent_decision(result):
     status = result.get("status", "safe")
     risk_level = result.get("risk_level", "low")
     probability = result.get("fall_probability_percent") or 0
+    confirmed_fall = result.get("confirmed_fall") is True
+    needs_manual_review = result.get("needs_manual_review") is True
 
     if status == "no_person":
         return {
@@ -33,7 +35,25 @@ def build_agent_decision(result):
             "next_action": "continue_collecting_frames",
         }
 
-    if status == "fall" or risk_level == "high" or probability >= 70:
+    if status == "suspicious" or needs_manual_review:
+        return {
+            "decision": "manual_review",
+            "decision_label": "Manual review required",
+            "risk_level": "medium",
+            "elder_message": (
+                "检测到一个疑似跌倒动作，但系统还没有确认发生跌倒。"
+                "请保持安全，必要时请回应需要帮助。"
+            ),
+            "family_message": "",
+            "actions": [
+                "Manual review recommended",
+                "No emergency workflow started",
+                "Continue observation",
+            ],
+            "next_action": "review_video",
+        }
+
+    if confirmed_fall:
         return {
             "decision": "emergency_workflow",
             "decision_label": "Emergency workflow started",
@@ -53,6 +73,24 @@ def build_agent_decision(result):
                 "Event saved to detection log",
             ],
             "next_action": "wait_for_elder_confirmation",
+        }
+
+    if status == "fall" or risk_level == "high" or probability >= 70:
+        return {
+            "decision": "manual_review",
+            "decision_label": "Manual review required",
+            "risk_level": "medium",
+            "elder_message": (
+                "检测到高风险动作，但系统还没有确认发生跌倒。"
+                "请确认您现在是否安全。"
+            ),
+            "family_message": "",
+            "actions": [
+                "Manual review recommended",
+                "No emergency workflow started",
+                "Continue observation",
+            ],
+            "next_action": "review_video",
         }
 
     if status == "warning" or risk_level == "medium" or probability >= 30:

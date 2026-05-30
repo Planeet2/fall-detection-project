@@ -227,13 +227,18 @@ Input:
 
 - video file: `.mp4`, `.mov`, `.avi`, `.webm`
 
-Output example:
+Confirmed fall output example:
 
 ```json
 {
   "status": "fall",
   "is_fall": true,
+  "confirmed_fall": true,
+  "needs_manual_review": false,
+  "decision_reason": "High fall probability, sufficient pose reliability, and sustained fall evidence",
+  "pose_reliability_ratio": 0.98,
   "risk_level": "high",
+  "fall_probability": 0.9997,
   "fall_probability_percent": 99.97,
   "label": "FALL DETECTED",
   "message": "Fall detected",
@@ -245,9 +250,64 @@ Output example:
     "elder_message": "A possible fall was detected. Are you okay?",
     "family_message": "Possible fall detected. Please check immediately.",
     "next_action": "wait_for_elder_confirmation"
+  },
+  "agent_result": {
+    "risk_level": "high",
+    "notify_caregiver": true,
+    "message": "A fall was detected. Please check immediately.",
+    "recommendation": "Contact the elder and verify their condition.",
+    "reason": "The fall detector reported a high-confidence fall event."
   }
 }
 ```
+
+Suspicious output example:
+
+```json
+{
+  "status": "suspicious",
+  "is_fall": false,
+  "confirmed_fall": false,
+  "needs_manual_review": true,
+  "decision_reason": "High peak fall probability but not enough sustained fall evidence",
+  "pose_reliability_ratio": 0.98,
+  "fall_probability_percent": 99.95,
+  "label": "POSSIBLE FALL - REVIEW NEEDED",
+  "agent": {
+    "decision": "manual_review",
+    "decision_label": "Manual review required",
+    "next_action": "review_video"
+  },
+  "agent_result": null
+}
+```
+
+Normal output example:
+
+```json
+{
+  "status": "normal",
+  "is_fall": false,
+  "confirmed_fall": false,
+  "needs_manual_review": false,
+  "decision_reason": "Fall probability below suspicious threshold",
+  "pose_reliability_ratio": 0.94,
+  "fall_probability_percent": 12.4,
+  "agent_result": null
+}
+```
+
+The backend now applies a post-processing decision layer after the YOLO Pose + LSTM prediction:
+
+- `normal`: fall probability is below the suspicious threshold;
+- `suspicious`: movement may look like a fall, but the video quality or sustained evidence is not enough for emergency workflow;
+- `fall`: confirmed fall with high probability, sufficient pose reliability, enough analyzed windows, and sustained fall evidence.
+
+This reduces false positives from ordinary actions such as sitting, bending, lying down, poor camera angles, or partial body tracking loss.
+
+Yuanjing-compatible agent analysis is called only when `confirmed_fall` is `true`.
+For `suspicious`, `normal`, no-person, and live-frame responses, `agent_result` is `null` and no Yuanjing request is made.
+If `YUANJING_API_KEY` is missing or the agent call fails, fall detection still succeeds and `agent_result` contains a safe fallback explanation.
 
 ### Detection History
 
@@ -289,6 +349,14 @@ Example payload:
 ```
 
 If `YUANJING_API_KEY` is not configured, this endpoint returns a safe fallback response instead of failing.
+
+Yuanjing-compatible settings are read from `backend/.env`:
+
+```env
+YUANJING_API_KEY=
+YUANJING_BASE_URL=https://maas-api.ai-yuanjing.com/openapi/compatible-mode/v1
+YUANJING_MODEL=deepseek-v3
+```
 
 ---
 
@@ -388,7 +456,7 @@ The backend analyzes the video and returns:
 The agent layer generates a decision:
 
 ```text
-Emergency workflow started
+Manual review required / Emergency workflow started
 ```
 
 ### Step 6
@@ -416,12 +484,14 @@ Implemented:
 - detection history;
 - statistics;
 - local agent decision logic;
+- post-processing fall decision layer with normal, suspicious, and confirmed fall states;
 - mock emergency notification;
-- Yuanjing Wanwu agent design files.
+- Yuanjing Wanwu agent design files;
+- Yuanjing-compatible agent call after confirmed fall detection.
 
 Planned:
 
-- real Yuanjing Wanwu platform integration;
+- production Yuanjing Wanwu workflow registration;
 - real MCP / HTTP tool registration;
 - real SMS or WeChat notification API;
 - voice interaction;

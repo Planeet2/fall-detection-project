@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -10,6 +11,8 @@ from fastapi.concurrency import run_in_threadpool
 from app.config import ALLOWED_EXTENSIONS, MAX_FRAME_UPLOAD_MB, MAX_UPLOAD_MB, UPLOAD_DIR
 from app.services.agent_decision import build_agent_decision
 from app.services.detector_provider import ModelUnavailable, get_detector, reset_detector
+from app.services.fall_decision import add_live_decision_metadata, classify_fall_decision
+from app.services.yuanjing_agent import analyze_fall_event
 from app.storage.detection_repository import StorageUnavailable, add_detection_log
 
 router = APIRouter(tags=["predictions"])
@@ -19,6 +22,63 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 MAX_FRAME_UPLOAD_BYTES = MAX_FRAME_UPLOAD_MB * 1024 * 1024
 CHUNK_SIZE = 1024 * 1024  # 1 MB
+
+
+def is_confirmed_fall(result: dict) -> bool:
+    return result.get("confirmed_fall") is True
+
+
+def add_video_decision_metadata(result: dict) -> None:
+    decision = classify_fall_decision(
+        fall_probability=result.get("fall_probability", 0.0),
+        frames_processed=result.get("frames_processed", 0),
+        reliable_pose_frames=result.get("reliable_pose_frames", 0),
+        windows_analyzed=result.get("windows_analyzed", 0),
+        additional_context=result,
+    )
+    result.update(decision)
+
+
+def build_fall_event_data(result: dict) -> dict:
+    return {
+        "event": "fall_detected",
+        "confidence": result.get("fall_probability"),
+        "confidence_percent": result.get("fall_probability_percent"),
+        "source": "prediction_endpoint",
+        "location": "unknown",
+        "elder_id": None,
+        "elder_name": "unknown",
+        "age": None,
+        "has_chronic_disease": None,
+        "detected_at": datetime.now(timezone.utc).isoformat(),
+        "pose_reliability_ratio": result.get("pose_reliability_ratio"),
+        "fall_window_ratio": result.get("fall_window_ratio"),
+        "peak_fall_streak": result.get("peak_fall_streak"),
+        "windows_analyzed": result.get("windows_analyzed"),
+    }
+
+
+def build_agent_failure_result(exc: Exception) -> dict:
+    return {
+        "risk_level": "unknown",
+        "notify_caregiver": False,
+        "message": "Yuanjing agent request failed.",
+        "recommendation": "Check Yuanjing API configuration and network access.",
+        "reason": f"{type(exc).__name__}: {exc}",
+    }
+
+
+async def add_yuanjing_agent_result(result: dict) -> None:
+    if not is_confirmed_fall(result):
+        result["agent_result"] = None
+        return
+
+    event_data = build_fall_event_data(result)
+
+    try:
+        result["agent_result"] = await analyze_fall_event(event_data)
+    except Exception as exc:
+        result["agent_result"] = build_agent_failure_result(exc)
 
 
 async def save_upload_file_with_limit(file: UploadFile, file_path: str) -> int:
@@ -68,9 +128,11 @@ async def predict_video(file: UploadFile = File(...)):
 
         detector = get_detector()
         result = await run_in_threadpool(detector.predict_video, file_path)
+        add_video_decision_metadata(result)
         result["agent"] = build_agent_decision(result)
-        # TODO: After fall detection is confirmed, call analyze_fall_event(event_data),
-        # save agent_result to PostgreSQL, and trigger notification if notify_caregiver is true.
+        await add_yuanjing_agent_result(result)
+        # TODO: Save fall detection event and agent_result to PostgreSQL.
+        # TODO: If agent_result.notify_caregiver is true, create caregiver notification.
 
         detection_id = None
         created_at = None
@@ -154,7 +216,9 @@ async def predict_frame(file: UploadFile = File(...)):
 
         detector = get_detector()
         result = await run_in_threadpool(detector.predict_frame, frame)
+        add_live_decision_metadata(result)
         result["agent"] = build_agent_decision(result)
+        result["agent_result"] = None
 
         return result
 

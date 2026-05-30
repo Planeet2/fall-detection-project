@@ -18,6 +18,7 @@ from app.config import (
 )
 from app.models.lstm_model import FallDetectionLSTM
 from app.services.device import get_device
+from app.services.fall_decision import SUSTAINED_FALL_WINDOW_THRESHOLD
 from app.services.live_smoothing import LiveFallSmoother
 from app.services.pose_quality import select_best_person_keypoints
 from app.services.preprocessing import normalize_sequence
@@ -155,8 +156,28 @@ class FallDetector:
 
         if len(fall_probabilities) == 0:
             max_probability = 0.0
+            mean_probability = 0.0
+            fall_window_count = 0
+            fall_window_ratio = 0.0
+            peak_fall_streak = 0
         else:
             max_probability = float(np.max(fall_probabilities))
+            mean_probability = float(np.mean(fall_probabilities))
+            fall_window_flags = [
+                probability >= SUSTAINED_FALL_WINDOW_THRESHOLD
+                for probability in fall_probabilities
+            ]
+            fall_window_count = sum(fall_window_flags)
+            fall_window_ratio = fall_window_count / len(fall_probabilities)
+            peak_fall_streak = 0
+            current_fall_streak = 0
+
+            for is_fall_window in fall_window_flags:
+                if is_fall_window:
+                    current_fall_streak += 1
+                    peak_fall_streak = max(peak_fall_streak, current_fall_streak)
+                else:
+                    current_fall_streak = 0
 
         if reliable_pose_frames == 0:
             status = "no_person"
@@ -195,6 +216,11 @@ class FallDetector:
             "risk_level": risk_level,
             "fall_probability": max_probability,
             "fall_probability_percent": round(max_probability * 100, 2),
+            "mean_fall_probability": mean_probability,
+            "mean_fall_probability_percent": round(mean_probability * 100, 2),
+            "fall_window_count": int(fall_window_count),
+            "fall_window_ratio": round(fall_window_ratio, 4),
+            "peak_fall_streak": int(peak_fall_streak),
             "label": label,
             "message": message,
             "frames_processed": frame_count,

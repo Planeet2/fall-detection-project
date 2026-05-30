@@ -1,6 +1,7 @@
 export function getStatusClass(item) {
   if (!item) return "idle";
-  if (item.is_fall === true || item.risk_level === "high" || item.status === "fall") return "danger";
+  if (item.confirmed_fall === true || item.is_fall === true || item.status === "fall") return "danger";
+  if (item.status === "suspicious" || item.needs_manual_review === true) return "warning";
   if (item.status === "warning" || item.risk_level === "medium") return "warning";
   if (item.status === "collecting" || item.status === "no_person") return "collecting";
   return "safe";
@@ -8,7 +9,9 @@ export function getStatusClass(item) {
 
 export function getStatusText(item) {
   if (!item) return "No analysis";
-  if (item.is_fall === true || item.status === "fall") return "Fall detected";
+  if (item.confirmed_fall === true || item.is_fall === true || item.status === "fall") return "Fall detected";
+  if (item.status === "suspicious" || item.needs_manual_review === true) return "Suspicious";
+  if (item.status === "normal") return "Normal";
   if (item.status === "warning" || item.risk_level === "medium") return "Warning";
   if (item.status === "collecting") return "Collecting";
   if (item.status === "no_person") return "No reliable pose";

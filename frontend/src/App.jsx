@@ -39,7 +39,13 @@ function App() {
   const filteredDetections = useMemo(() => {
     if (historyFilter === "all") return detections;
     if (historyFilter === "fall") {
-      return detections.filter((item) => item.is_fall === true || item.status === "fall");
+      return detections.filter((item) => item.confirmed_fall === true || item.is_fall === true || item.status === "fall");
+    }
+    if (historyFilter === "safe") {
+      return detections.filter((item) => item.status === "safe" || item.status === "normal" || item.risk_level === "low");
+    }
+    if (historyFilter === "warning") {
+      return detections.filter((item) => item.status === "warning" || item.status === "suspicious" || item.risk_level === "medium");
     }
     return detections.filter((item) => item.status === historyFilter || item.risk_level === historyFilter);
   }, [detections, historyFilter]);
@@ -531,7 +537,8 @@ function inferDecision(result) {
   if (!result) return "Waiting for behavior event";
   if (result.status === "no_person") return "Searching for reliable pose";
   if (result.status === "collecting") return "Collecting live frames";
-  if (result.risk_level === "high" || result.status === "fall") return "Emergency workflow started";
+  if (result.status === "suspicious" || result.needs_manual_review === true) return "Manual review required";
+  if (result.confirmed_fall === true || result.status === "fall") return "Emergency workflow started";
   if (result.risk_level === "medium" || result.status === "warning") return "Safety confirmation required";
   return "Normal monitoring";
 }
@@ -540,7 +547,8 @@ function inferNextAction(result) {
   if (!result) return "wait_for_event";
   if (result.status === "no_person") return "continue_pose_tracking";
   if (result.status === "collecting") return "continue_collecting_frames";
-  if (result.risk_level === "high" || result.status === "fall") return "wait_for_elder_confirmation";
+  if (result.status === "suspicious" || result.needs_manual_review === true) return "review_video";
+  if (result.confirmed_fall === true || result.status === "fall") return "wait_for_elder_confirmation";
   if (result.risk_level === "medium" || result.status === "warning") return "continue_observation";
   return "no_action_required";
 }
@@ -549,7 +557,10 @@ function inferWorkflowActions(result) {
   if (!result) return ["Wait for live or uploaded video", "Create structured event", "Run agent decision"];
   if (result.status === "no_person") return ["Ignore low-quality frame", "Keep searching for reliable pose", "Reset buffer if tracking is lost"];
   if (result.status === "collecting") return ["Collect reliable pose frames", "Wait for full sequence", "Hold emergency workflow"];
-  if (result.risk_level === "high" || result.status === "fall") {
+  if (result.status === "suspicious" || result.needs_manual_review === true) {
+    return ["Manual review recommended", "No emergency workflow started", "Continue observation"];
+  }
+  if (result.confirmed_fall === true || result.status === "fall") {
     return [
       "Voice confirmation requested",
       "Family notification prepared",
@@ -567,14 +578,16 @@ function elderMessage(result) {
   if (!result) return "The care agent is ready.";
   if (result.status === "no_person") return "Please stay within the camera view.";
   if (result.status === "collecting") return "The system is stabilizing live movement detection.";
-  if (result.risk_level === "high" || result.status === "fall") return "A possible fall was detected. Are you okay? Please respond if you need help.";
+  if (result.status === "suspicious" || result.needs_manual_review === true) return "A fall-like movement was detected. Please confirm that you are safe.";
+  if (result.confirmed_fall === true || result.status === "fall") return "A possible fall was detected. Are you okay? Please respond if you need help.";
   if (result.risk_level === "medium" || result.status === "warning") return "Your movement looks unstable. Please take a rest and confirm that you are okay.";
   return "Everything looks normal. Stay safe.";
 }
 
 function familyMessage(result) {
   if (!result) return "No emergency message yet.";
-  if (result.risk_level === "high" || result.status === "fall") return `Possible fall detected. Fall probability: ${result.fall_probability_percent ?? 0}%. Please check immediately.`;
+  if (result.status === "suspicious" || result.needs_manual_review === true) return "A suspicious movement was detected. Manual review is recommended.";
+  if (result.confirmed_fall === true || result.status === "fall") return `Possible fall detected. Fall probability: ${result.fall_probability_percent ?? 0}%. Please check immediately.`;
   if (result.risk_level === "medium" || result.status === "warning") return "A warning-level movement event was detected. Please continue observation.";
   return "No emergency alert is required.";
 }
