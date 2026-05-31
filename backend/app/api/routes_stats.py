@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from app.storage.detection_repository import StorageUnavailable, load_detections
+from app.storage.detection_events import get_detection_event_stats
+from app.storage.detection_repository import StorageUnavailable
+from app.storage.elder_profiles import get_elder_profile_counts
 
 router = APIRouter(tags=["stats"])
 
@@ -8,72 +10,43 @@ router = APIRouter(tags=["stats"])
 @router.get("/stats")
 def get_stats():
     try:
-        detections = load_detections()
+        stats = get_detection_event_stats()
     except StorageUnavailable as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return {
+            "total_detections": 0,
+            "fall_detections": 0,
+            "safe_detections": 0,
+            "warning_detections": 0,
+            "normal_detections": 0,
+            "suspicious_detections": 0,
+            "manual_review_count": 0,
+            "confirmed_fall_count": 0,
+            "total_elders": 0,
+            "active_elders": 0,
+            "high_risk_count": 0,
+            "medium_risk_count": 0,
+            "low_risk_count": 0,
+            "average_fall_probability_percent": 0,
+            "latest_detection": None,
+            "storage": {
+                "available": False,
+                "error": str(exc),
+            },
+        }
 
-    total_detections = len(detections)
-
-    fall_detections = sum(
-        1 for item in detections
-        if item.get("is_fall") is True
-    )
-
-    safe_detections = sum(
-        1 for item in detections
-        if item.get("status") in {"safe", "normal"}
-    )
-
-    warning_detections = sum(
-        1 for item in detections
-        if item.get("status") in {"warning", "suspicious"}
-    )
-
-    normal_detections = sum(
-        1 for item in detections
-        if item.get("status") in {"safe", "normal"}
-    )
-
-    suspicious_detections = sum(
-        1 for item in detections
-        if item.get("status") == "suspicious"
-    )
-
-    high_risk_count = sum(
-        1 for item in detections
-        if item.get("risk_level") == "high"
-    )
-
-    medium_risk_count = sum(
-        1 for item in detections
-        if item.get("risk_level") == "medium"
-    )
-
-    low_risk_count = sum(
-        1 for item in detections
-        if item.get("risk_level") == "low"
-    )
-
-    if total_detections > 0:
-        average_fall_probability = sum(
-            item.get("fall_probability_percent", 0) or 0
-            for item in detections
-        ) / total_detections
-    else:
-        average_fall_probability = 0
-
-    latest_detection = detections[0] if total_detections > 0 else None
+    try:
+        elder_stats = get_elder_profile_counts()
+    except StorageUnavailable:
+        elder_stats = {
+            "total_elders": 0,
+            "active_elders": 0,
+        }
 
     return {
-        "total_detections": total_detections,
-        "fall_detections": fall_detections,
-        "safe_detections": safe_detections,
-        "warning_detections": warning_detections,
-        "normal_detections": normal_detections,
-        "suspicious_detections": suspicious_detections,
-        "high_risk_count": high_risk_count,
-        "medium_risk_count": medium_risk_count,
-        "low_risk_count": low_risk_count,
-        "average_fall_probability_percent": round(average_fall_probability, 2),
-        "latest_detection": latest_detection,
+        **stats,
+        **elder_stats,
+        "storage": {
+            "available": True,
+            "error": None,
+        },
     }

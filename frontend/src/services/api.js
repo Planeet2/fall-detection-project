@@ -73,8 +73,32 @@ export function getDetections() {
   return request("/detections", { timeout: 8000 });
 }
 
+export function getDetectionHistory({ limit = 20, status = "all" } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+
+  if (status && status !== "all") {
+    params.set("status", status);
+  }
+
+  return request(`/detections/history?${params.toString()}`, { timeout: 8000 });
+}
+
 export function getStats() {
   return request("/stats", { timeout: 8000 });
+}
+
+export function getElders({ activeOnly = true } = {}) {
+  const params = new URLSearchParams({ active_only: String(activeOnly) });
+  return request(`/elders?${params.toString()}`, { timeout: 8000 });
+}
+
+export function createElderProfile(payload) {
+  return request("/elders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    timeout: 8000,
+  });
 }
 
 export function predictVideo(formData) {

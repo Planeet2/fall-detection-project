@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
+import DetectionHistory from "./components/DetectionHistory";
+import ElderProfiles from "./components/ElderProfiles";
 import LiveCamera from "./components/LiveCamera";
 import {
   API_URL,
@@ -23,32 +25,18 @@ function App() {
   const [videoPreview, setVideoPreview] = useState(null);
   const [result, setResult] = useState(null);
   const [liveResult, setLiveResult] = useState(null);
+  const [selectedElder, setSelectedElder] = useState(null);
   const [detections, setDetections] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState("");
   const [notification, setNotification] = useState(null);
-  const [historyFilter, setHistoryFilter] = useState("all");
+  const [historyRefreshToken, setHistoryRefreshToken] = useState(0);
 
   const allowedFormatsText = useMemo(() => {
     if (!modelInfo?.supported_formats) return ".mp4, .mov, .avi, .webm";
     return modelInfo.supported_formats.join(", ");
   }, [modelInfo]);
-
-  const filteredDetections = useMemo(() => {
-    if (historyFilter === "all") return detections;
-    if (historyFilter === "fall") {
-      return detections.filter((item) => item.confirmed_fall === true || item.is_fall === true || item.status === "fall");
-    }
-    if (historyFilter === "safe") {
-      return detections.filter((item) => item.status === "safe" || item.status === "normal" || item.risk_level === "low");
-    }
-    if (historyFilter === "warning") {
-      return detections.filter((item) => item.status === "warning" || item.status === "suspicious" || item.risk_level === "medium");
-    }
-    return detections.filter((item) => item.status === historyFilter || item.risk_level === historyFilter);
-  }, [detections, historyFilter]);
 
   const currentResult = liveResult || result || stats?.latest_detection || null;
   const currentStatusClass = getStatusClass(currentResult);
@@ -93,8 +81,6 @@ function App() {
   }
 
   async function loadDashboardData() {
-    setHistoryLoading(true);
-
     try {
       const [detectionsResult, statsResult] = await Promise.allSettled([
         getDetections(),
@@ -112,8 +98,8 @@ function App() {
       if (detectionsResult.status === "rejected" || statsResult.status === "rejected") {
         setError("History or statistics are temporarily unavailable.");
       }
-    } finally {
-      setHistoryLoading(false);
+    } catch {
+      setError("Dashboard data is temporarily unavailable.");
     }
   }
 
@@ -144,6 +130,10 @@ function App() {
     const formData = new FormData();
     formData.append("file", selectedFile);
 
+    if (selectedElder?.id) {
+      formData.append("elder_id", selectedElder.id);
+    }
+
     try {
       const data = await predictVideo(formData);
       setResult(data);
@@ -153,6 +143,7 @@ function App() {
       }
 
       await loadDashboardData();
+      setHistoryRefreshToken((value) => value + 1);
       await refreshSystem();
     } catch (err) {
       setError(err.message || "Could not analyze video.");
@@ -185,6 +176,7 @@ function App() {
       setResult(null);
       setDetections([]);
       await loadDashboardData();
+      setHistoryRefreshToken((value) => value + 1);
       await refreshSystem();
     } catch (err) {
       setError(err.message || "Could not clear detection history.");
@@ -194,6 +186,7 @@ function App() {
   async function handleRefresh() {
     setError("");
     await Promise.all([refreshSystem(), loadModelInfo(), loadDashboardData()]);
+    setHistoryRefreshToken((value) => value + 1);
   }
 
   return (
@@ -210,6 +203,7 @@ function App() {
         <nav className="sideNav" aria-label="Dashboard navigation">
           <a href="#overview" className="active">Overview</a>
           <a href="#live">Live Camera</a>
+          <a href="#elders">Elder Profiles</a>
           <a href="#analysis">Video Analysis</a>
           <a href="#agent">Workflow</a>
           <a href="#history">History</a>
@@ -279,6 +273,11 @@ function App() {
 
         <LiveCamera disabled={isBackendOffline} onResult={setLiveResult} />
 
+        <ElderProfiles
+          selectedElderId={selectedElder?.id || ""}
+          onSelect={setSelectedElder}
+        />
+
         <section id="analysis" className="mainGrid">
           <div className="panel uploadPanel">
             <div className="panelHeader">
@@ -321,7 +320,12 @@ function App() {
             {error && <div className="errorBox">{error}</div>}
           </div>
 
-          <ResultPanel currentResult={currentResult} currentStatusClass={currentStatusClass} fallProbability={fallProbability} />
+          <ResultPanel
+            currentResult={currentResult}
+            currentStatusClass={currentStatusClass}
+            fallProbability={fallProbability}
+            selectedElder={selectedElder}
+          />
         </section>
 
         <section id="agent" className="agentGrid">
@@ -341,63 +345,12 @@ function App() {
           <CareCard token="SOS" title="Emergency contact" text={currentResult?.risk_level === "high" ? "Family alert is ready to send." : "Emergency workflow is on standby."} />
         </section>
 
-        <section id="history" className="panel historyPanel">
-          <div className="panelHeader">
-            <div>
-              <span className="stepTag">History</span>
-              <h2>Detection History</h2>
-            </div>
-            <div className="tableActions">
-              <div className="segmentedControl compactSegments" aria-label="History filter">
-                {["all", "safe", "warning", "fall"].map((filter) => (
-                  <button
-                    key={filter}
-                    type="button"
-                    className={historyFilter === filter ? "active" : ""}
-                    onClick={() => setHistoryFilter(filter)}
-                  >
-                    {filter}
-                  </button>
-                ))}
-              </div>
-              <button className="ghostButton" type="button" onClick={loadDashboardData}>Refresh</button>
-              <button className="dangerButton" type="button" onClick={handleClearHistory} disabled={detections.length === 0}>Clear</button>
-            </div>
-          </div>
-
-          {historyLoading ? (
-            <p className="tableEmpty">Loading history...</p>
-          ) : filteredDetections.length === 0 ? (
-            <p className="tableEmpty">No matching detections.</p>
-          ) : (
-            <div className="tableWrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>File</th>
-                    <th>Status</th>
-                    <th>Risk</th>
-                    <th>Probability</th>
-                    <th>Agent</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDetections.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.created_at}</td>
-                      <td>{item.filename}</td>
-                      <td><span className={`statusChip ${getStatusClass(item)}`}>{getStatusText(item)}</span></td>
-                      <td>{item.risk_level || "—"}</td>
-                      <td>{item.fall_probability_percent ?? 0}%</td>
-                      <td>{item.agent_decision || item.agent?.decision || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+        <DetectionHistory
+          refreshSignal={historyRefreshToken}
+          onItemsLoaded={setDetections}
+          onStatsLoaded={setStats}
+          onClear={handleClearHistory}
+        />
 
         <section id="privacy" className="bottomGrid">
           <div className="panel privacyPanel">
@@ -430,7 +383,10 @@ function App() {
   );
 }
 
-function ResultPanel({ currentResult, currentStatusClass, fallProbability }) {
+function ResultPanel({ currentResult, currentStatusClass, fallProbability, selectedElder }) {
+  const resultElder = currentResult?.elder_profile || currentResult?.elder_snapshot || null;
+  const visibleElder = resultElder || selectedElder;
+
   return (
     <div className={`panel resultPanel ${currentStatusClass}`}>
       <div className="panelHeader">
@@ -457,9 +413,15 @@ function ResultPanel({ currentResult, currentStatusClass, fallProbability }) {
             <Info label="Status" value={currentResult.status || "unknown"} />
             <Info label="Frames" value={currentResult.frames_processed ?? currentResult.frames_collected ?? 0} />
             <Info label="Windows" value={currentResult.windows_analyzed ?? currentResult.smoothing_window ?? 0} />
+            <Info label="Elder" value={visibleElder?.full_name || currentResult.elder_id || "Not linked"} />
+            <Info label="Room" value={visibleElder?.room || "—"} />
             <Info label="Detection ID" value={currentResult.detection_id || currentResult.id || "—"} />
             <Info label="Created at" value={currentResult.created_at || "—"} />
           </div>
+
+          {currentResult.elder_warning && (
+            <div className="historyNotice">{currentResult.elder_warning}</div>
+          )}
         </>
       ) : (
         <div className="emptyState">

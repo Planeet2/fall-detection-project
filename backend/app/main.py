@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_agent import router as agent_router
 from app.api.routes_detections import router as detections_router
+from app.api.routes_elders import router as elders_router
 from app.api.routes_notifications import router as notifications_router
 from app.api.routes_predictions import router as predictions_router
 from app.api.routes_stats import router as stats_router
@@ -28,6 +29,7 @@ app.include_router(system_router)
 app.include_router(predictions_router)
 app.include_router(notifications_router)
 app.include_router(detections_router)
+app.include_router(elders_router)
 app.include_router(stats_router)
 app.include_router(agent_router)
 

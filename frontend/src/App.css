@@ -866,6 +866,126 @@ h3 {
   display: none;
 }
 
+.elderProfilesPanel {
+  margin-bottom: 14px;
+}
+
+.elderProfilesGrid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.3fr);
+  gap: 14px;
+}
+
+.elderList,
+.elderProfileForm {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.elderOption {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.elderOption.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.elderOption strong,
+.elderOption span {
+  display: block;
+}
+
+.elderOption span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.elderProfileForm label,
+.notesField {
+  display: grid;
+  gap: 6px;
+}
+
+.elderProfileForm label span,
+.notesField span,
+.checkboxRow span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.elderProfileForm input,
+.elderProfileForm textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: var(--text);
+}
+
+.elderProfileForm textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.checkboxRow {
+  display: flex !important;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.checkboxRow input {
+  width: auto;
+}
+
+.selectedElderBox {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: #eff6ff;
+}
+
+.selectedElderBox span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.selectedElderBox strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 18px;
+}
+
+.selectedElderBox p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .liveControls {
   display: grid;
   align-content: start;
@@ -992,6 +1112,163 @@ h3 {
   margin-bottom: 14px;
 }
 
+.historySummary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.historySummaryItem {
+  min-width: 0;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.historySummaryItem span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.historySummaryItem strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.historySummaryItem.safe strong {
+  color: var(--green);
+}
+
+.historySummaryItem.warning strong {
+  color: var(--amber);
+}
+
+.historySummaryItem.danger strong {
+  color: var(--red);
+}
+
+.historyNotice {
+  margin-bottom: 12px;
+  padding: 11px 12px;
+  border-radius: var(--radius);
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 800;
+}
+
+.historyError {
+  margin-bottom: 12px;
+}
+
+.historyList {
+  display: grid;
+  gap: 12px;
+}
+
+.historyCard {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left-width: 5px;
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.historyCard.safe {
+  border-left-color: var(--green);
+}
+
+.historyCard.warning,
+.historyCard.collecting {
+  border-left-color: var(--amber);
+}
+
+.historyCard.danger {
+  border-left-color: var(--red);
+}
+
+.historyCardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.historyCardHeader h3 {
+  margin: 10px 0 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.historyCardHeader time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.historyFacts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.historyFact {
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.historyFact span,
+.historyReason span,
+.agentResultBox > span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.historyFact strong {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.historyReason,
+.agentResultBox {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.historyReason p,
+.agentResultBox p {
+  margin: 7px 0 0;
+  color: #334155;
+  line-height: 1.5;
+  font-weight: 700;
+}
+
+.agentResultBox {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+}
+
+.agentResultBox .historyFacts {
+  margin-top: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .tableWrap {
   overflow-x: auto;
 }
@@ -1091,13 +1368,16 @@ td {
   .mainGrid,
   .agentGrid,
   .bottomGrid,
-  .liveGrid {
+  .liveGrid,
+  .elderProfilesGrid {
     grid-template-columns: 1fr;
   }
 
   .systemGrid,
   .quickStats,
-  .careGrid {
+  .careGrid,
+  .historySummary,
+  .historyFacts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1129,8 +1409,20 @@ td {
   .quickStats,
   .careGrid,
   .detailGrid,
-  .liveReadout {
+  .liveReadout,
+  .formGrid,
+  .historySummary,
+  .historyFacts,
+  .agentResultBox .historyFacts {
     grid-template-columns: 1fr;
+  }
+
+  .historyCardHeader {
+    flex-direction: column;
+  }
+
+  .historyCardHeader time {
+    text-align: left;
   }
 
   .riskDial {

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Response, status
 
 from app.config import ALLOWED_EXTENSIONS, FALL_PROBABILITY_THRESHOLD, SEQ_LEN
 from app.services.detector_provider import check_model_health
+from app.storage.detection_events import check_detection_events_health
 from app.storage.detection_repository import check_storage_health
 
 router = APIRouter(tags=["system"])
@@ -26,7 +27,8 @@ def health_check():
 def readiness_check(response: Response):
     model = check_model_health()
     storage = check_storage_health()
-    is_ready = model["ok"] and storage["ok"]
+    event_storage = check_detection_events_health()
+    is_ready = model["ok"] and storage["ok"] and event_storage["ok"]
 
     if not is_ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -36,6 +38,7 @@ def readiness_check(response: Response):
         "checks": {
             "model": model,
             "storage": storage,
+            "event_storage": event_storage,
         },
     }
 

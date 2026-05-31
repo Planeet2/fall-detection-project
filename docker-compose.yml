@@ -4,9 +4,9 @@ services:
     container_name: elderly_check_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: elderly_check
-      POSTGRES_USER: elderly_user
-      POSTGRES_PASSWORD: elderly_password
+      POSTGRES_DB: ${POSTGRES_DB:-elderly_check}
+      POSTGRES_USER: ${POSTGRES_USER:-elderly_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-elderly_password}
     ports:
       - "5433:5432"
     volumes:

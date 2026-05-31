@@ -98,16 +98,34 @@ def _get_list(name: str, default: list[str]) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _build_database_url() -> str:
+    database_url = _get_optional_str("DATABASE_URL")
+
+    if database_url:
+        return database_url
+
+    postgres_host = _get_str("POSTGRES_HOST", "localhost")
+    postgres_port = _get_str("POSTGRES_PORT", "5433")
+    postgres_db = _get_str("POSTGRES_DB", "elderly_check")
+    postgres_user = _get_str("POSTGRES_USER", "elderly_user")
+    postgres_password = _get_optional_str("POSTGRES_PASSWORD")
+
+    if postgres_password:
+        return (
+            f"postgresql://{postgres_user}:{postgres_password}"
+            f"@{postgres_host}:{postgres_port}/{postgres_db}"
+        )
+
+    return f"postgresql://{postgres_user}@{postgres_host}:{postgres_port}/{postgres_db}"
+
+
 _load_env_file()
 
 UPLOAD_DIR = _get_path("UPLOAD_DIR", "uploads")
 LOG_DIR = _get_path("LOG_DIR", "logs")
 DETECTIONS_LOG_FILE = os.path.join(LOG_DIR, _get_str("DETECTIONS_LOG_FILENAME", "detections.json"))
 
-DATABASE_URL = _get_str(
-    "DATABASE_URL",
-    "postgresql://elderly_user:elderly_password@localhost:5433/elderly_check",
-)
+DATABASE_URL = _build_database_url()
 
 ALLOWED_EXTENSIONS = set(
     _get_list("ALLOWED_EXTENSIONS", [".mp4", ".mov", ".avi", ".webm"])

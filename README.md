@@ -226,6 +226,7 @@ POST /predict-video
 Input:
 
 - video file: `.mp4`, `.mov`, `.avi`, `.webm`
+- optional form field: `elder_id`
 
 Confirmed fall output example:
 
@@ -244,6 +245,16 @@ Confirmed fall output example:
   "message": "Fall detected",
   "frames_processed": 156,
   "windows_analyzed": 127,
+  "elder_id": "4d6c1f5a-...",
+  "elder_profile": {
+    "id": "4d6c1f5a-...",
+    "full_name": "Ivan Petrov",
+    "age": 78,
+    "room": "204",
+    "location": "Bedroom",
+    "has_chronic_disease": true
+  },
+  "elder_warning": null,
   "agent": {
     "decision": "emergency_workflow",
     "decision_label": "Emergency workflow started",
@@ -311,11 +322,90 @@ Yuanjing-compatible agent analysis is called only when `confirmed_fall` is `true
 For `suspicious`, `normal`, no-person, and live-frame responses, `agent_result` is `null` and no Yuanjing request is made.
 If `YUANJING_API_KEY` is missing or the agent call fails, fall detection still succeeds and `agent_result` contains a safe fallback explanation.
 
+If `elder_id` is provided and the profile exists, the Yuanjing-compatible agent receives elder context such as name, age, room, location, health notes, and caregiver contacts.
+If the profile is missing, detection still works and the response includes `elder_warning`.
+
+### Elder Profiles
+
+```http
+POST /elders
+GET /elders
+GET /elders/{elder_id}
+PATCH /elders/{elder_id}
+DELETE /elders/{elder_id}
+```
+
+Create profile example:
+
+```json
+{
+  "full_name": "Ivan Petrov",
+  "age": 78,
+  "room": "204",
+  "location": "Bedroom",
+  "has_chronic_disease": true,
+  "health_notes": "High fall risk, uses walking stick",
+  "caregiver_name": "Anna",
+  "caregiver_contact": "+86...",
+  "family_contact": "+7...",
+  "emergency_contact": "+86..."
+}
+```
+
+The frontend has an Elder Profiles section where a caregiver can create a profile and select it before video analysis.
+Selected profiles are sent to `POST /predict-video` as `elder_id`.
+Detection events store `elder_id` and an `elder_snapshot`, so Detection History can show the linked elder even if the profile changes later.
+
 ### Detection History
 
 ```http
 GET /detections
 ```
+
+```http
+GET /detections/history?limit=20&status=suspicious
+```
+
+```http
+GET /detections/history/{detection_id}
+```
+
+`POST /predict-video` saves every final detection event to PostgreSQL when storage is available: `normal`, `suspicious`, and `fall`.
+The saved event includes fall probabilities, sustained-evidence metrics, final decision fields, local `agent`, `agent_result`, upload size, source, and nullable `elder_id`.
+If PostgreSQL is unavailable, the prediction still succeeds and the response includes `storage.saved: false` with an error message.
+In that case, start PostgreSQL with `docker compose up -d`, check `DATABASE_URL` in `backend/.env`, and rerun the request.
+
+History response example:
+
+```json
+{
+  "items": [
+    {
+      "id": "4d6c1f5a-...",
+      "status": "suspicious",
+      "is_fall": false,
+      "confirmed_fall": false,
+      "needs_manual_review": true,
+      "risk_level": "medium",
+      "elder_id": "4d6c1f5a-...",
+      "elder_snapshot": {
+        "full_name": "Ivan Petrov",
+        "room": "204"
+      },
+      "fall_probability_percent": 99.95,
+      "mean_fall_probability_percent": 39.45,
+      "decision_reason": "High peak fall probability but insufficient sustained fall evidence",
+      "created_at": "2026-05-31T12:00:00Z",
+      "agent_result": null
+    }
+  ],
+  "count": 1
+}
+```
+
+The frontend includes a Detection History section that reads `GET /detections/history` and `GET /stats`.
+It shows a summary, event cards, and filters for `All`, `Fall`, `Suspicious`, and `Normal`.
+Selecting a filter calls the matching backend query, for example `GET /detections/history?limit=20&status=normal`.
 
 ### Statistics
 
@@ -366,6 +456,12 @@ YUANJING_MODEL=deepseek-v3
 
 ### 7.1 Backend
 
+Start PostgreSQL from the project root:
+
+```bash
+docker compose up -d
+```
+
 Go to the backend folder:
 
 ```bash
@@ -377,6 +473,15 @@ Install dependencies:
 ```bash
 pip install -r ../requirements.txt
 ```
+
+PostgreSQL settings are read from `backend/.env`.
+The main variable is:
+
+```env
+DATABASE_URL=postgresql://elderly_user:elderly_password@localhost:5433/elderly_check
+```
+
+Alternatively, set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD`.
 
 Run backend:
 
@@ -423,6 +528,19 @@ Frontend will run at:
 ```text
 http://localhost:3000
 ```
+
+The frontend expects the backend at `http://127.0.0.1:8000` by default.
+To use a different backend URL, set `VITE_API_URL` before starting Vite.
+
+To verify Detection History:
+
+1. Start PostgreSQL and the backend.
+2. Create an elder profile in the Elder Profiles section or through `POST /elders`.
+3. Select the elder profile before running video analysis.
+4. Run one `POST /predict-video` from the dashboard or Swagger.
+5. Open the History section and confirm the elder name/room appears on the event card.
+6. Try the `All`, `Fall`, `Suspicious`, and `Normal` filters.
+7. If the backend is off, the History section shows an error instead of breaking the page.
 
 ---
 
@@ -483,7 +601,9 @@ Implemented:
 - YOLOv8 Pose keypoint extraction;
 - LSTM fall detection;
 - risk level classification;
+- elder profile management and linked detection events;
 - detection history;
+- PostgreSQL `detection_events` persistence;
 - statistics;
 - local agent decision logic;
 - post-processing fall decision layer with normal, suspicious, and confirmed fall states;
@@ -498,7 +618,6 @@ Planned:
 - real SMS or WeChat notification API;
 - voice interaction;
 - continuous camera monitoring;
-- real elderly profile management;
 - multi-user care dashboard.
 
 ---

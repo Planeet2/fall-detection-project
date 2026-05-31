@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 import cv2
 import numpy as np
@@ -13,7 +13,9 @@ from app.services.agent_decision import build_agent_decision
 from app.services.detector_provider import ModelUnavailable, get_detector, reset_detector
 from app.services.fall_decision import add_live_decision_metadata, classify_fall_decision
 from app.services.yuanjing_agent import analyze_fall_event
-from app.storage.detection_repository import StorageUnavailable, add_detection_log
+from app.storage.detection_repository import StorageUnavailable
+from app.storage.detection_events import save_detection_event
+from app.storage.elder_profiles import elder_snapshot, get_elder_profile
 
 router = APIRouter(tags=["predictions"])
 
@@ -39,17 +41,62 @@ def add_video_decision_metadata(result: dict) -> None:
     result.update(decision)
 
 
-def build_fall_event_data(result: dict) -> dict:
+def public_elder_profile(profile: dict | None) -> dict | None:
+    if not profile:
+        return None
+
+    return {
+        "id": profile.get("id"),
+        "full_name": profile.get("full_name"),
+        "age": profile.get("age"),
+        "room": profile.get("room"),
+        "location": profile.get("location"),
+        "has_chronic_disease": profile.get("has_chronic_disease"),
+        "health_notes": profile.get("health_notes"),
+        "caregiver_name": profile.get("caregiver_name"),
+        "is_active": profile.get("is_active"),
+    }
+
+
+async def load_elder_profile(elder_id: str | None) -> tuple[dict | None, str | None]:
+    if not elder_id:
+        return None, None
+
+    try:
+        profile = await run_in_threadpool(get_elder_profile, elder_id)
+    except StorageUnavailable:
+        return None, "Elder profile lookup is unavailable. Detection processed without profile context."
+
+    if profile is None:
+        return None, "Elder profile not found. Detection processed without profile context."
+
+    return profile, None
+
+
+def build_fall_event_data(result: dict, elder_profile: dict | None = None) -> dict:
+    elder_name = "unknown"
+    location = "unknown"
+
+    if elder_profile:
+        elder_name = elder_profile.get("full_name") or elder_name
+        location = elder_profile.get("location") or elder_profile.get("room") or location
+
     return {
         "event": "fall_detected",
         "confidence": result.get("fall_probability"),
         "confidence_percent": result.get("fall_probability_percent"),
         "source": "prediction_endpoint",
-        "location": "unknown",
-        "elder_id": None,
-        "elder_name": "unknown",
-        "age": None,
-        "has_chronic_disease": None,
+        "elder_id": elder_profile.get("id") if elder_profile else result.get("elder_id"),
+        "elder_name": elder_name,
+        "age": elder_profile.get("age") if elder_profile else None,
+        "room": elder_profile.get("room") if elder_profile else None,
+        "location": location,
+        "has_chronic_disease": elder_profile.get("has_chronic_disease") if elder_profile else None,
+        "health_notes": elder_profile.get("health_notes") if elder_profile else None,
+        "caregiver_name": elder_profile.get("caregiver_name") if elder_profile else None,
+        "caregiver_contact": elder_profile.get("caregiver_contact") if elder_profile else None,
+        "family_contact": elder_profile.get("family_contact") if elder_profile else None,
+        "emergency_contact": elder_profile.get("emergency_contact") if elder_profile else None,
         "detected_at": datetime.now(timezone.utc).isoformat(),
         "pose_reliability_ratio": result.get("pose_reliability_ratio"),
         "fall_window_ratio": result.get("fall_window_ratio"),
@@ -68,12 +115,12 @@ def build_agent_failure_result(exc: Exception) -> dict:
     }
 
 
-async def add_yuanjing_agent_result(result: dict) -> None:
+async def add_yuanjing_agent_result(result: dict, elder_profile: dict | None = None) -> None:
     if not is_confirmed_fall(result):
         result["agent_result"] = None
         return
 
-    event_data = build_fall_event_data(result)
+    event_data = build_fall_event_data(result, elder_profile)
 
     try:
         result["agent_result"] = await analyze_fall_event(event_data)
@@ -105,8 +152,12 @@ async def save_upload_file_with_limit(file: UploadFile, file_path: str) -> int:
 
 
 @router.post("/predict-video")
-async def predict_video(file: UploadFile = File(...)):
+async def predict_video(
+    file: UploadFile = File(...),
+    elder_id: str | None = Form(default=None),
+):
     original_filename = file.filename
+    elder_id = elder_id.strip() if elder_id else None
 
     if not original_filename:
         raise HTTPException(status_code=400, detail="No file uploaded.")
@@ -125,25 +176,30 @@ async def predict_video(file: UploadFile = File(...)):
 
     try:
         upload_size_bytes = await save_upload_file_with_limit(file, file_path)
+        elder_profile, elder_warning = await load_elder_profile(elder_id)
+        public_profile = public_elder_profile(elder_profile)
+        elder_snapshot_data = elder_snapshot(elder_profile)
 
         detector = get_detector()
         result = await run_in_threadpool(detector.predict_video, file_path)
         add_video_decision_metadata(result)
+        result["elder_id"] = elder_id
+        result["elder_profile"] = public_profile
+        result["elder_snapshot"] = elder_snapshot_data
+        result["elder_warning"] = elder_warning
         result["agent"] = build_agent_decision(result)
-        await add_yuanjing_agent_result(result)
-        # TODO: Save fall detection event and agent_result to PostgreSQL.
-        # TODO: If agent_result.notify_caregiver is true, create caregiver notification.
+        await add_yuanjing_agent_result(result, elder_profile)
+        # TODO: If confirmed_fall is true, create emergency notification for caregiver.
+        # TODO: If needs_manual_review is true, create manual review notification.
 
-        detection_id = None
-        created_at = None
-        storage = {"saved": True, "error": None}
-
-        try:
-            detection_record = await run_in_threadpool(add_detection_log, original_filename, result)
-            detection_id = detection_record["id"]
-            created_at = detection_record["created_at"]
-        except StorageUnavailable as exc:
-            storage = {"saved": False, "error": str(exc)}
+        event_data = {
+            **result,
+            "upload_size_bytes": upload_size_bytes,
+            "source": "predict-video",
+        }
+        storage = await run_in_threadpool(save_detection_event, event_data)
+        detection_id = storage.get("detection_id")
+        created_at = storage.get("created_at")
 
         return {
             **result,
