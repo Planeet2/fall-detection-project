@@ -235,7 +235,7 @@ Confirmed fall output example:
   "is_fall": true,
   "confirmed_fall": true,
   "needs_manual_review": false,
-  "decision_reason": "High fall probability, sufficient pose reliability, and sustained fall evidence",
+  "decision_reason": "High fall probability, sufficient pose reliability, sufficient mean probability, and sustained fall window ratio",
   "pose_reliability_ratio": 0.98,
   "risk_level": "high",
   "fall_probability": 0.9997,
@@ -269,7 +269,7 @@ Suspicious output example:
   "is_fall": false,
   "confirmed_fall": false,
   "needs_manual_review": true,
-  "decision_reason": "High peak fall probability but not enough sustained fall evidence",
+  "decision_reason": "High peak fall probability but insufficient sustained fall evidence",
   "pose_reliability_ratio": 0.98,
   "fall_probability_percent": 99.95,
   "label": "POSSIBLE FALL - REVIEW NEEDED",
@@ -300,8 +300,10 @@ Normal output example:
 The backend now applies a post-processing decision layer after the YOLO Pose + LSTM prediction:
 
 - `normal`: fall probability is below the suspicious threshold;
-- `suspicious`: movement may look like a fall, but the video quality or sustained evidence is not enough for emergency workflow;
-- `fall`: confirmed fall with high probability, sufficient pose reliability, enough analyzed windows, and sustained fall evidence.
+- `suspicious`: movement may look like a fall, but the video quality, mean probability, or sustained evidence is not enough for emergency workflow;
+- `fall`: confirmed fall with high peak probability, sufficient mean probability, sufficient pose reliability, enough analyzed windows, and sustained fall window ratio.
+
+High peak `fall_probability` alone is not enough to confirm a fall. A confirmed fall also requires `fall_window_ratio >= 0.25`, `mean_fall_probability >= 0.50`, and reliable pose tracking. If the peak is high but sustained evidence is weak, the response is `suspicious` and the emergency workflow is not started.
 
 This reduces false positives from ordinary actions such as sitting, bending, lying down, poor camera angles, or partial body tracking loss.
 

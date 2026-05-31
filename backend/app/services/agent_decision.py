@@ -48,7 +48,6 @@ def build_agent_decision(result):
             "actions": [
                 "Manual review recommended",
                 "No emergency workflow started",
-                "Continue observation",
             ],
             "next_action": "review_video",
         }
@@ -88,7 +87,6 @@ def build_agent_decision(result):
             "actions": [
                 "Manual review recommended",
                 "No emergency workflow started",
-                "Continue observation",
             ],
             "next_action": "review_video",
         }

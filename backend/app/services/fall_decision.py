@@ -5,7 +5,7 @@ SUSPICIOUS_THRESHOLD = 0.50
 CONFIRMED_FALL_THRESHOLD = 0.90
 SUSTAINED_FALL_WINDOW_THRESHOLD = 0.85
 MIN_FALL_WINDOW_RATIO = 0.25
-MIN_CONSECUTIVE_FALL_WINDOWS = 3
+MEAN_FALL_CONFIRMATION_THRESHOLD = 0.50
 
 
 def _to_float(value, default=0.0):
@@ -78,7 +78,7 @@ def _suspicious(reason: str, pose_reliability_ratio: float) -> dict:
         confirmed_fall=False,
         risk_level="medium",
         label="POSSIBLE FALL - REVIEW NEEDED",
-        message="Suspicious fall-like movement detected. Manual review is recommended.",
+        message="Fall-like movement detected. Manual review recommended.",
         decision_reason=reason,
         needs_manual_review=True,
         pose_reliability_ratio=pose_reliability_ratio,
@@ -99,28 +99,16 @@ def _confirmed(reason: str, pose_reliability_ratio: float) -> dict:
     )
 
 
-def _has_sustained_fall_evidence(
-    windows_analyzed: int,
-    additional_context: dict | None,
-) -> bool:
+def _has_required_sustained_fall_evidence(additional_context: dict | None) -> bool:
     if not additional_context:
-        return True
-
-    fall_window_ratio = additional_context.get("fall_window_ratio")
-    peak_fall_streak = additional_context.get("peak_fall_streak")
-
-    if fall_window_ratio is None and peak_fall_streak is None:
-        return True
-
-    fall_window_ratio = _to_float(fall_window_ratio)
-    peak_fall_streak = _to_int(peak_fall_streak)
-
-    if windows_analyzed <= 0:
         return False
+
+    fall_window_ratio = _to_float(additional_context.get("fall_window_ratio"))
+    mean_fall_probability = _to_float(additional_context.get("mean_fall_probability"))
 
     return (
         fall_window_ratio >= MIN_FALL_WINDOW_RATIO
-        or peak_fall_streak >= MIN_CONSECUTIVE_FALL_WINDOWS
+        and mean_fall_probability >= MEAN_FALL_CONFIRMATION_THRESHOLD
     )
 
 
@@ -176,14 +164,14 @@ def classify_fall_decision(
             pose_reliability_ratio,
         )
 
-    if not _has_sustained_fall_evidence(windows_analyzed, additional_context):
+    if not _has_required_sustained_fall_evidence(additional_context):
         return _suspicious(
-            "High peak fall probability but not enough sustained fall evidence",
+            "High peak fall probability but insufficient sustained fall evidence",
             pose_reliability_ratio,
         )
 
     return _confirmed(
-        "High fall probability, sufficient pose reliability, and sustained fall evidence",
+        "High fall probability, sufficient pose reliability, sufficient mean probability, and sustained fall window ratio",
         pose_reliability_ratio,
     )
 
